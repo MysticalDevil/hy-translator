@@ -28,4 +28,11 @@ class ModelRepositoryImpl(
     override fun download(): Flow<DownloadProgress> = requireDownloader().download()
 
     override fun getRecommended(): ModelOption = ModelOptions.recommend(context)
+
+    override fun clearAllModels() {
+        val modelDir = java.io.File(context.filesDir, "models")
+        if (modelDir.isDirectory) {
+            modelDir.listFiles()?.forEach { it.delete() }
+        }
+    }
 }

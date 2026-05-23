@@ -111,6 +111,7 @@ fun TranslatorScreen(
     selectedModel: ModelOption,
     onSwitchModel: () -> Unit,
     onDownload: () -> Unit,
+    onClearAllModels: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -288,6 +289,7 @@ fun TranslatorScreen(
                     selectedModel = selectedModel,
                     onSwitchModel = onSwitchModel,
                     onDownload = onDownload,
+                    onClearAllModels = onClearAllModels,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
@@ -736,6 +738,7 @@ private fun StatusBanner(
     selectedModel: ModelOption,
     onSwitchModel: () -> Unit,
     onDownload: () -> Unit,
+    onClearAllModels: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -832,6 +835,24 @@ private fun StatusBanner(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        FilledTonalButton(
+                            onClick = onDownload,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(stringResource(R.string.action_retry))
+                        }
+                        TextButton(
+                            onClick = onClearAllModels,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(stringResource(R.string.model_clear_all))
+                        }
+                    }
                 }
 
                 is ModelStatus.Ready -> {}

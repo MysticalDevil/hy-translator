@@ -53,4 +53,6 @@
     <string name="model_current">Current: %1$s</string>
     <string name="model_switch">Switch Model</string>
     <string name="model_download_confirm">Download %1$s</string>
+    <string name="action_retry">Retry</string>
+    <string name="model_clear_all">Clear All Models</string>
 </resources>

@@ -12,4 +12,6 @@ interface ModelRepository {
     fun download(): Flow<DownloadProgress>
 
     fun getRecommended(): ModelOption
+
+    fun clearAllModels()
 }

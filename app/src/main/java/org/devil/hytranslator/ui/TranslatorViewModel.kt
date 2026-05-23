@@ -178,6 +178,17 @@ class TranslatorViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun onClearAllModels() {
+        downloadJob?.cancel()
+        downloadJob = null
+        generationJob?.cancel()
+        generationJob = null
+        _isTranslating.value = false
+        modelRepository.clearAllModels()
+        _modelStatus.value = ModelStatus.NotDownloaded
+        _downloadProgress.value = null
+    }
+
     fun onSwapLanguages() {
         val src = _sourceLang.value
         val tgt = _targetLang.value

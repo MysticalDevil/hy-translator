@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity() {
             selectedModel = selectedModel,
             onSwitchModel = { showModelPicker = true },
             onDownload = viewModel::onDownload,
+            onClearAllModels = viewModel::onClearAllModels,
             modifier = Modifier.systemBarsPadding(),
         )
     }
