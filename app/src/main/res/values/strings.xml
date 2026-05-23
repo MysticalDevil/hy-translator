@@ -65,6 +65,7 @@
     <string name="model_q8_0_name">Hy-MT2-1.8B Q8_0</string>
     <string name="model_q8_0_desc">Largest 1.9GB, best quality</string>
     <string name="model_select_title">Select Model</string>
+    <string name="model_recommended">Recommended</string>
     <string name="model_current">Current: %1$s</string>
     <string name="model_switch">Switch Model</string>
     <string name="model_download_confirm">Download %1$s</string>

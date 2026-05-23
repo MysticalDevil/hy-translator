@@ -18,6 +18,7 @@
         android:theme="@style/Theme.MyApplication">
         <activity
             android:name="org.devil.hytranslator.MainActivity"
+            android:configChanges="uiMode|screenSize|orientation"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "org.devil.hytranslator"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         applicationId = "org.devil.hytranslator"
         minSdk = 33
@@ -71,13 +71,13 @@ dependencies {
   implementation(libs.okhttp)
 
   // ML Kit OCR
-  implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+  implementation(libs.text.recognition.chinese)
 
   // CameraX
-  implementation("androidx.camera:camera-core:1.3.3")
-  implementation("androidx.camera:camera-camera2:1.3.3")
-  implementation("androidx.camera:camera-lifecycle:1.3.3")
-  implementation("androidx.camera:camera-view:1.3.3")
+  implementation("androidx.camera:camera-core:1.6.1")
+  implementation("androidx.camera:camera-camera2:1.6.1")
+  implementation("androidx.camera:camera-lifecycle:1.6.1")
+  implementation("androidx.camera:camera-view:1.6.1")
 
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)

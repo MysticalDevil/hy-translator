@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace = "com.arm.aichat"
-    compileSdk = 36
+    compileSdk = 37
 
     ndkVersion = "29.0.13113456"
 

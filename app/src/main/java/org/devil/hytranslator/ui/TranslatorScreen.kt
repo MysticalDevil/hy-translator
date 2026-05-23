@@ -75,7 +75,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -352,10 +351,10 @@ private suspend fun processBitmapFromUri(
     try {
         val bitmap = withContext(Dispatchers.IO) {
             val inputStream = context.contentResolver.openInputStream(uri)
-                ?: throw Exception("无法读取图片")
+                ?: throw Exception(context.getString(R.string.ocr_failed))
             val raw = BitmapFactory.decodeStream(inputStream)
             inputStream.close()
-            raw ?: throw Exception("图片解析失败")
+            raw ?: throw Exception(context.getString(R.string.ocr_failed))
         }
         val corrected = withContext(Dispatchers.IO) {
             val inputStream = context.contentResolver.openInputStream(uri)
@@ -1033,7 +1032,7 @@ fun ModelPickerDialog(
                                                 ),
                                             ) {
                                                 Text(
-                                                    text = "推荐",
+                                                    text = stringResource(R.string.model_recommended),
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.padding(
