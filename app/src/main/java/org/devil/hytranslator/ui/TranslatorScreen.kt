@@ -927,103 +927,70 @@ fun ModelPickerDialog(
 ) {
     val context = LocalContext.current
     val recommended = remember { ModelOptions.recommend(context) }
-    val availableMemGb = remember {
-        val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-        val mi = android.app.ActivityManager.MemoryInfo()
-        am.getMemoryInfo(mi)
-        mi.totalMem / (1024f * 1024f * 1024f)
-    }
 
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
-            modifier = Modifier.fillMaxWidth(0.94f),
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .heightIn(max = 480.dp),
         ) {
             Column {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 24.dp, end = 12.dp, top = 16.dp, bottom = 4.dp),
+                        .padding(start = 24.dp, end = 12.dp, top = 16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column {
-                        Text(
-                            text = stringResource(R.string.model_select_title),
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = "本机 %,.0f GB · 可用约 %,.0f GB".format(
-                                availableMemGb,
-                                availableMemGb * 0.7f,
-                            ),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    IconButton(onClick = onDismiss) {
+                    Text(
+                        text = stringResource(R.string.model_select_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
                         Icon(
                             imageVector = Icons.Filled.Close,
                             contentDescription = stringResource(R.string.cd_close_camera),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
                         )
                     }
                 }
-
-                Spacer(Modifier.height(4.dp))
-
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        horizontal = 16.dp,
-                        vertical = 4.dp,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(ModelOptions.all, key = { it.key }) { model ->
                         val isSelected = model.key == currentModel.key
                         val isRecommended = model.key == recommended.key
-                        val exceedsAvailable = model.memoryRequirementGb > availableMemGb * 0.7f
 
-                        ElevatedCard(
+                        Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { onSelect(model) },
-                            shape = RoundedCornerShape(16.dp),
-                            elevation = CardDefaults.elevatedCardElevation(
-                                defaultElevation = if (isSelected) 2.dp else 0.dp,
-                            ),
-                            colors = CardDefaults.elevatedCardColors(
-                                containerColor = if (isSelected) {
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
-                                } else {
-                                    MaterialTheme.colorScheme.surface
-                                },
-                            ),
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                            } else {
+                                Color.Transparent
+                            },
                         ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
+                            Row(
+                                modifier = Modifier
+                                    .padding(horizontal = 24.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f),
-                                    ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
                                             text = stringResource(model.nameResId),
-                                            style = MaterialTheme.typography.titleSmall.copy(
+                                            style = MaterialTheme.typography.bodyLarge.copy(
                                                 fontWeight = if (isSelected) FontWeight.Bold
                                                 else FontWeight.Medium,
                                             ),
@@ -1032,89 +999,49 @@ fun ModelPickerDialog(
                                         if (isRecommended) {
                                             Spacer(Modifier.width(8.dp))
                                             Surface(
-                                                shape = RoundedCornerShape(6.dp),
+                                                shape = RoundedCornerShape(4.dp),
                                                 color = MaterialTheme.colorScheme.primary.copy(
                                                     alpha = 0.12f,
                                                 ),
                                             ) {
                                                 Text(
                                                     text = "推荐",
-                                                    style = MaterialTheme.typography.labelSmall.copy(
-                                                        fontWeight = FontWeight.Medium,
-                                                    ),
+                                                    style = MaterialTheme.typography.labelSmall,
                                                     color = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.padding(
                                                         horizontal = 6.dp,
-                                                        vertical = 2.dp,
+                                                        vertical = 1.dp,
                                                     ),
                                                 )
                                             }
                                         }
                                     }
-
-                                    Spacer(Modifier.width(8.dp))
-
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = if (isSelected) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            MaterialTheme.colorScheme.surfaceVariant
-                                        },
-                                        modifier = Modifier.size(24.dp),
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            if (isSelected) {
-                                                Icon(
-                                                    imageVector = Icons.Filled.Check,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                                    modifier = Modifier.size(14.dp),
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Spacer(Modifier.height(6.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
+                                    Spacer(Modifier.height(2.dp))
                                     Text(
                                         text = stringResource(model.descResId),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.weight(1f),
                                     )
-                                    Spacer(Modifier.width(12.dp))
-                                    Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = if (exceedsAvailable) {
-                                            MaterialTheme.colorScheme.errorContainer
-                                        } else {
-                                            MaterialTheme.colorScheme.surfaceVariant
-                                        },
-                                    ) {
-                                        Text(
-                                            text = "~${model.memoryRequirementGb}GB",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = if (exceedsAvailable) {
-                                                MaterialTheme.colorScheme.onErrorContainer
-                                            } else {
-                                                MaterialTheme.colorScheme.onSurfaceVariant
-                                            },
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                        )
-                                    }
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = "~${model.memoryRequirementGb}GB",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                if (isSelected) {
+                                    Spacer(Modifier.width(8.dp))
+                                    Icon(
+                                        imageVector = Icons.Filled.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp),
+                                    )
                                 }
                             }
                         }
                     }
                 }
-
-                Spacer(Modifier.height(8.dp))
             }
         }
     }
