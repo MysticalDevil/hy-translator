@@ -553,11 +553,16 @@ private fun InputArea(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "${text.length}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Box(
+                    modifier = Modifier.height(40.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "${text.length}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
@@ -585,13 +590,13 @@ private fun InputArea(
                             onClick = onTranslate,
                             enabled = modelReady,
                             colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary,
                                 disabledContentColor = MaterialTheme.colorScheme.onSurface
                                     .copy(alpha = 0.38f),
                             ),
                         ) {
                             Text(
                                 text = stringResource(R.string.action_translate),
-                                color = MaterialTheme.colorScheme.primary,
                                 style = MaterialTheme.typography.labelLarge,
                             )
                         }

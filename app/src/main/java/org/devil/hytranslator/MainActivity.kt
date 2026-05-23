@@ -66,6 +66,10 @@ class MainActivity : ComponentActivity() {
         var showModelPicker by remember { mutableStateOf(false) }
 
         LaunchedEffect(selectedModel) {
+            generationFlow?.cancel()
+            generationFlow = null
+            isTranslating = false
+            translator.cancel()
             prefs.edit().putString("model_key", selectedModel.key).apply()
             downloader = ModelDownloader(this@MainActivity, selectedModel.filename)
             if (downloader?.isModelDownloaded() == true) {
@@ -73,13 +77,6 @@ class MainActivity : ComponentActivity() {
             } else {
                 modelStatus = ModelStatus.NotDownloaded
                 downloadProgress = null
-            }
-        }
-
-        LaunchedEffect(Unit) {
-            downloader = ModelDownloader(this@MainActivity, selectedModel.filename)
-            if (downloader?.isModelDownloaded() == true) {
-                loadModel { modelStatus = it }
             }
         }
 
