@@ -111,7 +111,6 @@ fun TranslatorScreen(
     selectedModel: ModelOption,
     onSwitchModel: () -> Unit,
     onDownload: () -> Unit,
-    onClearAllModels: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -289,7 +288,6 @@ fun TranslatorScreen(
                     selectedModel = selectedModel,
                     onSwitchModel = onSwitchModel,
                     onDownload = onDownload,
-                    onClearAllModels = onClearAllModels,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
@@ -738,7 +736,6 @@ private fun StatusBanner(
     selectedModel: ModelOption,
     onSwitchModel: () -> Unit,
     onDownload: () -> Unit,
-    onClearAllModels: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -836,22 +833,11 @@ private fun StatusBanner(
                         color = MaterialTheme.colorScheme.error,
                     )
                     Spacer(Modifier.height(12.dp))
-                    Row(
+                    FilledTonalButton(
+                        onClick = onDownload,
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        FilledTonalButton(
-                            onClick = onDownload,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(stringResource(R.string.action_retry))
-                        }
-                        TextButton(
-                            onClick = onClearAllModels,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(stringResource(R.string.model_clear_all))
-                        }
+                        Text(stringResource(R.string.action_retry))
                     }
                 }
 
@@ -973,6 +959,7 @@ fun ModelPickerDialog(
     currentModel: ModelOption,
     onSelect: (ModelOption) -> Unit,
     onDismiss: () -> Unit,
+    onClearAllModels: () -> Unit,
 ) {
     val context = LocalContext.current
     val recommended = remember { ModelOptions.recommend(context) }
@@ -1014,7 +1001,7 @@ fun ModelPickerDialog(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f, fill = false),
+                        .weight(1f),
                 ) {
                     items(ModelOptions.all, key = { it.key }) { model ->
                         val isSelected = model.key == currentModel.key
@@ -1086,12 +1073,29 @@ fun ModelPickerDialog(
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp),
                                     )
-                                }
-                            }
-                        }
                     }
                 }
+                androidx.compose.material3.HorizontalDivider()
+                TextButton(
+                    onClick = {
+                        onClearAllModels()
+                        onDismiss()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.model_clear_all),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
             }
+        }
+    }
+}
         }
     }
 }

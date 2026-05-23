@@ -38,14 +38,10 @@
     <string name="cd_close_camera">Close camera</string>
 
     <!-- i18n: Model options -->
-    <string name="model_q2_k_name">Hy-MT2-1.8B Q2_K</string>
-    <string name="model_q2_k_desc">Smallest 0.7GB, fastest, fair quality</string>
-    <string name="model_q3_k_m_name">Hy-MT2-1.8B Q3_K_M</string>
-    <string name="model_q3_k_m_desc">Small 0.8GB, fast, decent quality</string>
     <string name="model_q4_k_m_name">Hy-MT2-1.8B Q4_K_M</string>
     <string name="model_q4_k_m_desc">Recommended 1.1GB, speed-quality balance</string>
-    <string name="model_q5_k_m_name">Hy-MT2-1.8B Q5_K_M</string>
-    <string name="model_q5_k_m_desc">Large 1.3GB, better quality</string>
+    <string name="model_q6_k_name">Hy-MT2-1.8B Q6_K</string>
+    <string name="model_q6_k_desc">Balanced 1.5GB, good quality</string>
     <string name="model_q8_0_name">Hy-MT2-1.8B Q8_0</string>
     <string name="model_q8_0_desc">Largest 1.9GB, best quality</string>
     <string name="model_select_title">Select Model</string>

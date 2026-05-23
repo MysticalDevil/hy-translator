@@ -58,6 +58,7 @@ class MainActivity : ComponentActivity() {
                     showModelPicker = false
                 },
                 onDismiss = { showModelPicker = false },
+                onClearAllModels = viewModel::onClearAllModels,
             )
         }
 
@@ -83,7 +84,6 @@ class MainActivity : ComponentActivity() {
             selectedModel = selectedModel,
             onSwitchModel = { showModelPicker = true },
             onDownload = viewModel::onDownload,
-            onClearAllModels = viewModel::onClearAllModels,
             modifier = Modifier.systemBarsPadding(),
         )
     }

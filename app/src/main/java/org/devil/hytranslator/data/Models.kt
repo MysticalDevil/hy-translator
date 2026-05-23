@@ -8,22 +8,6 @@ import org.devil.hytranslator.domain.model.ModelOption
 object ModelOptions {
     val all = listOf(
         ModelOption(
-            key = "Q2_K",
-            nameResId = R.string.model_q2_k_name,
-            descResId = R.string.model_q2_k_desc,
-            filename = "Hy-MT2-1.8B-Q2_K.gguf",
-            sizeGb = 0.7f,
-            memoryRequirementGb = 1.4f,
-        ),
-        ModelOption(
-            key = "Q3_K_M",
-            nameResId = R.string.model_q3_k_m_name,
-            descResId = R.string.model_q3_k_m_desc,
-            filename = "Hy-MT2-1.8B-Q3_K_M.gguf",
-            sizeGb = 0.8f,
-            memoryRequirementGb = 1.6f,
-        ),
-        ModelOption(
             key = "Q4_K_M",
             nameResId = R.string.model_q4_k_m_name,
             descResId = R.string.model_q4_k_m_desc,
@@ -32,12 +16,12 @@ object ModelOptions {
             memoryRequirementGb = 2.2f,
         ),
         ModelOption(
-            key = "Q5_K_M",
-            nameResId = R.string.model_q5_k_m_name,
-            descResId = R.string.model_q5_k_m_desc,
-            filename = "Hy-MT2-1.8B-Q5_K_M.gguf",
-            sizeGb = 1.3f,
-            memoryRequirementGb = 2.6f,
+            key = "Q6_K",
+            nameResId = R.string.model_q6_k_name,
+            descResId = R.string.model_q6_k_desc,
+            filename = "Hy-MT2-1.8B-Q6_K.gguf",
+            sizeGb = 1.5f,
+            memoryRequirementGb = 2.8f,
         ),
         ModelOption(
             key = "Q8_0",
