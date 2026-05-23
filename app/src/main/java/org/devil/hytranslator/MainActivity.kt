@@ -69,7 +69,6 @@ class MainActivity : ComponentActivity() {
             generationFlow?.cancel()
             generationFlow = null
             isTranslating = false
-            translator.cancel()
             prefs.edit().putString("model_key", selectedModel.key).apply()
             downloader = ModelDownloader(this@MainActivity, selectedModel.filename)
             if (downloader?.isModelDownloaded() == true) {
