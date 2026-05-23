@@ -12,8 +12,6 @@ data class ModelOption(
     val sizeGb: Float,
     val memoryRequirementGb: Float,
 ) {
-    val downloadUrl: String
-        get() = "${ModelDownloader.HF_BASE_URL}${filename}?download=true"
 }
 
 object ModelOptions {
@@ -61,8 +59,6 @@ object ModelOptions {
     )
 
     fun getByKey(key: String): ModelOption = all.first { it.key == key }
-
-    fun getDefault(): ModelOption = all.first { it.key == "Q4_K_M" }
 
     fun recommend(context: Context): ModelOption {
         val totalRamGb = getTotalRamGb(context)

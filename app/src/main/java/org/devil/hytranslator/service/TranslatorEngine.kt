@@ -21,10 +21,6 @@ class TranslatorEngine(context: Context) {
         engine.loadModel(path)
     }
 
-    suspend fun setSystemPrompt(prompt: String) {
-        engine.setSystemPrompt(prompt)
-    }
-
     fun translate(
         text: String,
         sourceLang: Language,

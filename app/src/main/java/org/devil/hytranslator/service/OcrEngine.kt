@@ -1,6 +1,5 @@
 package org.devil.hytranslator.service
 
-import android.content.Context
 import android.graphics.Bitmap
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -12,7 +11,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import androidx.core.graphics.scale
 
-class OcrEngine(private val context: Context) {
+class OcrEngine() {
 
     private val recognizer = TextRecognition.getClient(
         ChineseTextRecognizerOptions.Builder().build(),

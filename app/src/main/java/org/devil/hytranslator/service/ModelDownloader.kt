@@ -31,14 +31,6 @@ class ModelDownloader(
 
     fun isModelDownloaded(): Boolean = modelFile.exists() && modelFile.length() > 100_000_000L
 
-    fun getModelSize(): Long = if (modelFile.exists()) modelFile.length() else 0L
-
-    fun deleteModel() {
-        modelFile.delete()
-        val tmp = File(modelDir, "$filename.tmp")
-        tmp.delete()
-    }
-
     fun download(): Flow<DownloadProgress> = flow {
         val url = "${HF_BASE_URL}${filename}?download=true"
         val tmpFile = File(modelDir, "$filename.tmp")

@@ -5,7 +5,6 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -20,7 +19,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -34,7 +32,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -74,11 +71,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -122,10 +116,9 @@ fun TranslatorScreen(
     var showSourcePicker by remember { mutableStateOf(false) }
     var showTargetPicker by remember { mutableStateOf(false) }
     var showCopyToast by remember { mutableStateOf(false) }
-    var swapRotation by remember { mutableFloatStateOf(0f) }
-    val clipboardManager = LocalClipboard.current
+    var swapRotation by remember { mutableStateOf(0f) }
 
-    val ocrEngine = remember { OcrEngine(context) }
+    val ocrEngine = remember { OcrEngine() }
     var ocrFlow by remember { mutableStateOf<OcrFlow>(OcrFlow.Hidden) }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
@@ -265,7 +258,12 @@ fun TranslatorScreen(
                         targetLang = targetLang,
                         isTranslating = isTranslating,
                         onCopy = {
-                            clipboardManager.setText(AnnotatedString(outputText))
+                            val clipboard = context.getSystemService(
+                                android.content.Context.CLIPBOARD_SERVICE,
+                            ) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(
+                                android.content.ClipData.newPlainText("translation", outputText),
+                            )
                             showCopyToast = true
                         },
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
@@ -369,7 +367,7 @@ private suspend fun processBitmapFromUri(
             inputStream.close()
             rotateBitmap(bitmap, orientation)
         }
-        val ocrEngine = OcrEngine(context)
+        val ocrEngine = OcrEngine()
         try {
             val text = ocrEngine.recognize(corrected)
             onFlow(OcrFlow.Result(text))

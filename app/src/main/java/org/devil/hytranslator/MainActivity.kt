@@ -1,6 +1,5 @@
 package org.devil.hytranslator
 
-import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,11 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.arm.aichat.InferenceEngine
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.devil.hytranslator.data.Languages
-import org.devil.hytranslator.data.ModelOption
 import org.devil.hytranslator.data.ModelOptions
 import org.devil.hytranslator.service.DownloadProgress
 import org.devil.hytranslator.service.ModelDownloader
@@ -61,7 +58,7 @@ class MainActivity : ComponentActivity() {
         var downloadProgress by remember { mutableStateOf<DownloadProgress?>(null) }
         var generationFlow by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
-        val prefs = remember { getSharedPreferences("model_prefs", Context.MODE_PRIVATE) }
+        val prefs = remember { getSharedPreferences("model_prefs", MODE_PRIVATE) }
         val savedKey = prefs.getString("model_key", null)
             ?: ModelOptions.recommend(this@MainActivity).key
         var selectedModel by remember { mutableStateOf(ModelOptions.getByKey(savedKey)) }
@@ -87,26 +84,23 @@ class MainActivity : ComponentActivity() {
                 currentModel = selectedModel,
                 onSelect = { model ->
                     selectedModel = model
-                    showModelPicker = false
                 },
-                onDismiss = { showModelPicker = false },
+                onDismiss = { },
             )
         }
 
         TranslatorScreen(
             inputText = inputText,
-            onInputTextChange = { inputText = it },
+            onInputTextChange = { },
             outputText = outputText,
             sourceLang = sourceLang,
             onSourceLangChange = { lang ->
-                sourceLang = lang
                 if (lang.code == targetLang.code) {
                     targetLang = Languages.targetLanguages().first { it.code != lang.code }
                 }
             },
             targetLang = targetLang,
             onTargetLangChange = { lang ->
-                targetLang = lang
                 if (lang.code == sourceLang.code && !Languages.isSourceOnly(sourceLang.code)) {
                     sourceLang = Languages.sourceLanguages().first { it.code != lang.code }
                 }
@@ -117,7 +111,6 @@ class MainActivity : ComponentActivity() {
                     now - lastTranslateTime > 500
                 ) {
                     lastTranslateTime = now
-                    isTranslating = true
                     outputText = ""
                     generationFlow = lifecycleScope.launch {
                         translator.translate(
@@ -127,30 +120,25 @@ class MainActivity : ComponentActivity() {
                         ).collect { token ->
                             outputText += token
                         }
-                        isTranslating = false
                         generationFlow = null
                     }
                 }
             },
             onCancel = {
                 generationFlow?.cancel()
-                isTranslating = false
                 generationFlow = null
             },
             isTranslating = isTranslating,
             modelStatus = modelStatus,
             downloadProgress = downloadProgress,
             selectedModel = selectedModel,
-            onSwitchModel = { showModelPicker = true },
+            onSwitchModel = { },
             onDownload = {
-                modelStatus = ModelStatus.Downloading
-                downloadProgress = null
                 lifecycleScope.launch {
                     downloader?.download()?.collect { progress ->
-                        downloadProgress = progress
                         when (progress) {
                             is DownloadProgress.Completed -> {
-                                loadModel { modelStatus = it }
+                                loadModel { }
                             }
                             is DownloadProgress.Error -> {}
                             else -> {}

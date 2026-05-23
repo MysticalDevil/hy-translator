@@ -51,23 +51,6 @@ internal class GgufMetadataReaderImpl(
         data class Float64(val value: Double) : MetadataValue()    // 12: 64-bit IEEE754 double
     }
 
-    /* Convert MetadataValue to plain Kotlin primitives for allMetadata map */
-    private fun MetadataValue.toPrimitive(): Any = when (this) {
-        is MetadataValue.UInt8     -> value
-        is MetadataValue.Int8      -> value
-        is MetadataValue.UInt16    -> value
-        is MetadataValue.Int16     -> value
-        is MetadataValue.UInt32    -> value
-        is MetadataValue.Int32     -> value
-        is MetadataValue.Float32   -> value
-        is MetadataValue.Bool      -> value
-        is MetadataValue.StringVal -> value
-        is MetadataValue.UInt64    -> value
-        is MetadataValue.Int64     -> value
-        is MetadataValue.Float64   -> value
-        is MetadataValue.ArrayVal  -> elements.map { it.toPrimitive() }
-    }
-
     /**
      * Reads the magic number from the specified file path.
      *
@@ -198,7 +181,6 @@ internal class GgufMetadataReaderImpl(
         fun String.i32()  = (m[this] as? MetadataValue.Int32)?.value
         fun String.u32()  = (m[this] as? MetadataValue.UInt32)?.value?.toInt()
         fun String.f32()  = (m[this] as? MetadataValue.Float32)?.value
-        fun String.f64()  = (m[this] as? MetadataValue.Float64)?.value?.toFloat()
         fun String.strList(): List<String>? =
             (m[this] as? MetadataValue.ArrayVal)
                 ?.elements
@@ -417,7 +399,7 @@ internal class GgufMetadataReaderImpl(
             val len      = readLittleLong(input)
             val count    = len.toInt()
 
-            if (arraySummariseThreshold >= 0 && count > arraySummariseThreshold) {
+            if (arraySummariseThreshold in 0..<count) {
                 // fast‑forward without allocation
                 repeat(count) { skipValue(input, elemType) }
                 MetadataValue.StringVal("Array($elemType, $count items) /* summarised */")
@@ -549,7 +531,7 @@ internal class GgufMetadataReaderImpl(
             val skipped = skip(remaining)
             when {
                 skipped > 0      -> remaining -= skipped               // normal fast path
-                skipped == 0L    -> {
+                true -> {
                     // fallback: read and discard
                     val read = read(scratch, 0, minOf(remaining, scratch.size.toLong()).toInt())
                     if (read == -1) throw IOException("EOF while skipping $n bytes")

@@ -1,7 +1,5 @@
 package com.arm.aichat.gguf
 
-import kotlin.collections.get
-
 
 /**
  * Numerical codes used by `general.file_type` (see llama.cpp repo's `constants.py`).
@@ -56,6 +54,5 @@ enum class FileType(val code: Int, val label: String) {
     companion object {
         private val map = entries.associateBy(FileType::code)
 
-        fun fromCode(code: Int?): FileType = map[code] ?: UNKNOWN
     }
 }
