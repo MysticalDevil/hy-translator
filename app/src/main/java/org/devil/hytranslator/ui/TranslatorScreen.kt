@@ -137,7 +137,7 @@ fun TranslatorScreen(
     ) { uri ->
         if (uri != null) {
             scope.launch {
-                processBitmapFromUri(context, uri) { ocrFlow = it }
+                processBitmapFromUri(context, uri, ocrEngine) { ocrFlow = it }
             }
         }
     }
@@ -348,6 +348,7 @@ fun TranslatorScreen(
 private suspend fun processBitmapFromUri(
     context: android.content.Context,
     uri: android.net.Uri,
+    ocrEngine: OcrEngine,
     onFlow: (OcrFlow) -> Unit,
 ) {
     onFlow(OcrFlow.Processing)
@@ -370,13 +371,8 @@ private suspend fun processBitmapFromUri(
             inputStream.close()
             rotateBitmap(bitmap, orientation)
         }
-        val ocrEngine = OcrEngine()
-        try {
-            val text = ocrEngine.recognize(corrected)
-            onFlow(OcrFlow.Result(text))
-        } finally {
-            ocrEngine.close()
-        }
+        val text = ocrEngine.recognize(corrected)
+        onFlow(OcrFlow.Result(text))
     } catch (e: Exception) {
         onFlow(OcrFlow.Error(e.message ?: context.getString(R.string.ocr_failed)))
     }

@@ -2,11 +2,6 @@
 // Created by Han Yin on 10/31/25.
 //
 
-#ifndef AICHAT_LOGGING_H
-#define AICHAT_LOGGING_H
-
-#endif //AICHAT_LOGGING_H
-
 #pragma once
 #include <android/log.h>
 
