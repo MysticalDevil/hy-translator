@@ -81,6 +81,7 @@ class TranslatorViewModel(application: Application) : AndroidViewModel(applicati
     val selectedModel: StateFlow<ModelOption> = _selectedModelFlow.asStateFlow()
 
     private var generationJob: Job? = null
+    private var downloadJob: Job? = null
 
     fun onInputTextChange(text: String) {
         _inputText.value = text
@@ -134,6 +135,8 @@ class TranslatorViewModel(application: Application) : AndroidViewModel(applicati
 
         generationJob?.cancel()
         generationJob = null
+        downloadJob?.cancel()
+        downloadJob = null
         _isTranslating.value = false
 
         _selectedModel = model
@@ -150,16 +153,27 @@ class TranslatorViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun onDownload() {
+        if (downloadJob?.isActive == true) return
+
         _modelStatus.value = ModelStatus.Downloading
         _downloadProgress.value = null
-        viewModelScope.launch {
-            modelRepository.download().collect { progress ->
-                _downloadProgress.value = progress
-                when (progress) {
-                    is DownloadProgress.Completed -> loadModel()
-                    is DownloadProgress.Error -> {}
-                    else -> {}
+        downloadJob = viewModelScope.launch {
+            try {
+                modelRepository.download().collect { progress ->
+                    _downloadProgress.value = progress
+                    when (progress) {
+                        is DownloadProgress.Completed -> loadModel()
+                        is DownloadProgress.Error -> {
+                            _modelStatus.value = ModelStatus.Error(progress.message)
+                        }
+                        else -> {}
+                    }
                 }
+            } catch (e: Exception) {
+                _modelStatus.value = ModelStatus.Error(
+                    e.message ?: getApplication<Application>()
+                        .getString(org.devil.hytranslator.R.string.model_load_failed),
+                )
             }
         }
     }
