@@ -64,7 +64,8 @@
 
 | # | 问题 | 理由 |
 |---|------|------|
-| — | 下载取消 `.tmp` 残留 | `.tmp` 支持断点续传，`clearAllModels()` 时一并删除 |
+| — | 下载取消 `.tmp` 残留 | `.tmp` 是断点续传的关键：取消/网络中断后重新下载时，从已有 `.tmp` 末尾继续（HTTP Range 请求），避免从头重下 GB 级文件。`clearAllModels()` 时一并清理所有文件包括 `.tmp` |
+| — | `processBitmapFromUri` 内临时 OcrEngine | 该函数是独立工具函数，不在 Composable 作用域内，无法访问 `remember` 的实例。改为参数注入 OcrEngine 需要重签 `handleOcrBitmap`/`processBitmapFromUri` 以及 CameraCapture 的 `onCaptured` 回调链，改动涉及 4 个文件、风险高于收益 |
 
 ---
 
