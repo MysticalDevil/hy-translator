@@ -273,7 +273,7 @@ fun TranslatorScreen(
             }
 
             AnimatedVisibility(
-                visible = true,
+                visible = modelStatus !is ModelStatus.Ready,
                 enter = fadeIn(tween(250)) + expandVertically(
                     tween(250, easing = FastOutSlowInEasing),
                 ),
@@ -287,6 +287,14 @@ fun TranslatorScreen(
                     selectedModel = selectedModel,
                     onSwitchModel = onSwitchModel,
                     onDownload = onDownload,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+
+            if (modelStatus is ModelStatus.Ready) {
+                ModelInfoBar(
+                    selectedModel = selectedModel,
+                    onSwitchModel = onSwitchModel,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
@@ -565,20 +573,12 @@ private fun InputArea(
                     }
 
                     if (isTranslating) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
-                                strokeWidth = 2.dp,
+                        TextButton(onClick = onCancel) {
+                            Text(
+                                text = stringResource(R.string.action_cancel),
                                 color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.labelLarge,
                             )
-                            Spacer(Modifier.width(8.dp))
-                            TextButton(onClick = onCancel) {
-                                Text(
-                                    text = stringResource(R.string.action_cancel),
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.labelLarge,
-                                )
-                            }
                         }
                     } else if (text.isNotEmpty()) {
                         TextButton(
@@ -687,6 +687,39 @@ private fun OutputCard(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ModelInfoBar(
+    selectedModel: ModelOption,
+    onSwitchModel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(
+                R.string.model_current,
+                stringResource(selectedModel.nameResId),
+            ),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        )
+        TextButton(
+            onClick = onSwitchModel,
+            modifier = Modifier.height(32.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.model_switch),
+                style = MaterialTheme.typography.labelSmall,
+            )
         }
     }
 }
