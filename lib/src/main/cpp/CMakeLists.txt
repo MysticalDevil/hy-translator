@@ -11,10 +11,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
 set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}"   CACHE STRING "" FORCE)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}" CACHE STRING "" FORCE)
 
-# --------------------------------------------------------------------------
-# AI Chat library
-# --------------------------------------------------------------------------
-
 if(DEFINED ANDROID_ABI)
     message(STATUS "Detected Android ABI: ${ANDROID_ABI}")
     if(ANDROID_ABI STREQUAL "arm64-v8a")
@@ -33,8 +29,16 @@ endif()
 set(LLAMA_SRC ${CMAKE_CURRENT_LIST_DIR}/../../../../llama.cpp)
 add_subdirectory(${LLAMA_SRC} build-llama)
 
-add_library(${CMAKE_PROJECT_NAME} SHARED
-        ai_chat.cpp)
+# 16 KB page size alignment for Android 15+
+set(ALIGN_FLAGS -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384)
+foreach(target llama-common-base llama-common llama ggml-base ggml-cpu ggml)
+    if(TARGET ${target})
+        target_link_options(${target} PRIVATE ${ALIGN_FLAGS})
+    endif()
+endforeach()
+
+add_library(${CMAKE_PROJECT_NAME} SHARED ai_chat.cpp)
+target_link_options(${CMAKE_PROJECT_NAME} PRIVATE ${ALIGN_FLAGS})
 
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
         GGML_SYSTEM_ARCH=${GGML_SYSTEM_ARCH}

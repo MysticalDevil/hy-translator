@@ -70,6 +70,15 @@ dependencies {
 
   implementation(libs.okhttp)
 
+  // ML Kit OCR
+  implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+
+  // CameraX
+  implementation("androidx.camera:camera-core:1.3.3")
+  implementation("androidx.camera:camera-camera2:1.3.3")
+  implementation("androidx.camera:camera-lifecycle:1.3.3")
+  implementation("androidx.camera:camera-view:1.3.3")
+
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   androidTestImplementation(libs.androidx.test.core)

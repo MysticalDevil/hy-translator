@@ -11,8 +11,10 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 
-class ModelDownloader(private val context: Context) {
-
+class ModelDownloader(
+    private val context: Context,
+    private var filename: String = "Hy-MT2-1.8B-Q4_K_M.gguf",
+) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
@@ -23,7 +25,7 @@ class ModelDownloader(private val context: Context) {
         get() = File(context.filesDir, "models").also { it.mkdirs() }
 
     private val modelFile: File
-        get() = File(modelDir, MODEL_FILENAME)
+        get() = File(modelDir, filename)
 
     fun getModelPath(): String = modelFile.absolutePath
 
@@ -31,9 +33,15 @@ class ModelDownloader(private val context: Context) {
 
     fun getModelSize(): Long = if (modelFile.exists()) modelFile.length() else 0L
 
+    fun deleteModel() {
+        modelFile.delete()
+        val tmp = File(modelDir, "$filename.tmp")
+        tmp.delete()
+    }
+
     fun download(): Flow<DownloadProgress> = flow {
-        val url = "${HF_BASE_URL}${MODEL_FILENAME}?download=true"
-        val tmpFile = File(modelDir, "$MODEL_FILENAME.tmp")
+        val url = "${HF_BASE_URL}${filename}?download=true"
+        val tmpFile = File(modelDir, "$filename.tmp")
 
         val existingSize = tmpFile.takeIf { it.exists() }?.length() ?: 0L
 
@@ -83,7 +91,6 @@ class ModelDownloader(private val context: Context) {
     }.flowOn(Dispatchers.IO)
 
     companion object {
-        const val MODEL_FILENAME = "Hy-MT2-1.8B-Q4_K_M.gguf"
         const val HF_BASE_URL = "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/main/"
     }
 }

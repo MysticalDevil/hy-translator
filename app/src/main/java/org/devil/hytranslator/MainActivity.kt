@@ -1,5 +1,6 @@
 package org.devil.hytranslator
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,20 +12,25 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.devil.hytranslator.data.Languages
+import org.devil.hytranslator.data.ModelOption
+import org.devil.hytranslator.data.ModelOptions
 import org.devil.hytranslator.service.DownloadProgress
 import org.devil.hytranslator.service.ModelDownloader
 import org.devil.hytranslator.service.TranslatorEngine
 import org.devil.hytranslator.theme.MyApplicationTheme
+import org.devil.hytranslator.ui.ModelPickerDialog
 import org.devil.hytranslator.ui.ModelStatus
 import org.devil.hytranslator.ui.TranslatorScreen
 
 class MainActivity : ComponentActivity() {
 
     private val translator by lazy { TranslatorEngine(this) }
-    private val downloader by lazy { ModelDownloader(this) }
+    private var downloader: ModelDownloader? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,10 +59,39 @@ class MainActivity : ComponentActivity() {
         var downloadProgress by remember { mutableStateOf<DownloadProgress?>(null) }
         var generationFlow by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
+        val prefs = remember { getSharedPreferences("model_prefs", Context.MODE_PRIVATE) }
+        val savedKey = prefs.getString("model_key", null)
+            ?: ModelOptions.recommend(this@MainActivity).key
+        var selectedModel by remember { mutableStateOf(ModelOptions.getByKey(savedKey)) }
+        var showModelPicker by remember { mutableStateOf(false) }
+
+        LaunchedEffect(selectedModel) {
+            prefs.edit().putString("model_key", selectedModel.key).apply()
+            downloader = ModelDownloader(this@MainActivity, selectedModel.filename)
+            if (downloader?.isModelDownloaded() == true) {
+                loadModel { modelStatus = it }
+            } else {
+                modelStatus = ModelStatus.NotDownloaded
+                downloadProgress = null
+            }
+        }
+
         LaunchedEffect(Unit) {
-            if (downloader.isModelDownloaded()) {
+            downloader = ModelDownloader(this@MainActivity, selectedModel.filename)
+            if (downloader?.isModelDownloaded() == true) {
                 loadModel { modelStatus = it }
             }
+        }
+
+        if (showModelPicker) {
+            ModelPickerDialog(
+                currentModel = selectedModel,
+                onSelect = { model ->
+                    selectedModel = model
+                    showModelPicker = false
+                },
+                onDismiss = { showModelPicker = false },
+            )
         }
 
         TranslatorScreen(
@@ -102,11 +137,13 @@ class MainActivity : ComponentActivity() {
             isTranslating = isTranslating,
             modelStatus = modelStatus,
             downloadProgress = downloadProgress,
+            selectedModel = selectedModel,
+            onSwitchModel = { showModelPicker = true },
             onDownload = {
                 modelStatus = ModelStatus.Downloading
                 downloadProgress = null
                 lifecycleScope.launch {
-                    downloader.download().collect { progress ->
+                    downloader?.download()?.collect { progress ->
                         downloadProgress = progress
                         when (progress) {
                             is DownloadProgress.Completed -> {
@@ -126,10 +163,12 @@ class MainActivity : ComponentActivity() {
         onStatus(ModelStatus.Loading)
         lifecycleScope.launch {
             try {
-                translator.loadModel(downloader.getModelPath())
-                onStatus(ModelStatus.Ready)
+                val path = downloader?.getModelPath() ?: return@launch
+                withContext(Dispatchers.Main) { onStatus(ModelStatus.Loading) }
+                translator.loadModel(path)
+                withContext(Dispatchers.Main) { onStatus(ModelStatus.Ready) }
             } catch (e: Exception) {
-                onStatus(ModelStatus.Error(e.message ?: "模型加载失败"))
+                onStatus(ModelStatus.Error(e.message ?: getString(R.string.model_load_failed)))
             }
         }
     }

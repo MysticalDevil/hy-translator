@@ -3,39 +3,69 @@
 
     <!-- i18n: Main UI strings -->
     <string name="title_translator">Hy Translator</string>
-    <string name="label_source_lang">源语言</string>
-    <string name="label_target_lang">目标语言</string>
-    <string name="label_input_text">输入文本</string>
-    <string name="label_output_text">翻译结果</string>
-    <string name="hint_input_text">请输入要翻译的文本…</string>
-    <string name="action_translate">翻译</string>
-    <string name="action_cancel">取消</string>
-    <string name="action_clear">清除</string>
-    <string name="action_swap_lang">交换语言</string>
-    <string name="action_copy">复制</string>
-    <string name="copied_to_clipboard">已复制到剪贴板</string>
-    <string name="translating">翻译中…</string>
+    <string name="label_source_lang">Source Language</string>
+    <string name="label_target_lang">Target Language</string>
+    <string name="label_input_text">Input Text</string>
+    <string name="label_output_text">Translation Result</string>
+    <string name="hint_input_text">Enter text to translate…</string>
+    <string name="action_translate">Translate</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_swap_lang">Swap Languages</string>
+    <string name="action_copy">Copy</string>
+    <string name="copied_to_clipboard">Copied to clipboard</string>
+    <string name="translating">Translating…</string>
 
     <!-- i18n: Model management strings -->
-    <string name="model_download_title">需要下载模型文件</string>
-    <string name="model_download_desc">首次使用需要下载翻译模型 (Hy-MT2-1.8B-Q4_K_M, ~1.1GB)</string>
-    <string name="model_download_btn">下载模型 (1.1GB)</string>
-    <string name="model_downloading">下载中: %1$.1f / %2$.1f MB</string>
-    <string name="model_download_starting">开始下载…</string>
-    <string name="model_loading">加载模型中…</string>
-    <string name="model_error">错误: %1$s</string>
-    <string name="model_download_failed">下载失败: %1$s</string>
-    <string name="translation_error">翻译错误: %1$s</string>
-    <string name="lang_auto_detect">自动检测</string>
+    <string name="model_download_title">Model download required</string>
+    <string name="model_download_desc">First-time use requires downloading the translation model (Hy-MT2-1.8B-Q4_K_M, ~1.1GB)</string>
+    <string name="model_download_btn">Download Model (1.1GB)</string>
+    <string name="model_downloading">Downloading: %1$.1f / %2$.1f MB</string>
+    <string name="model_download_starting">Starting download…</string>
+    <string name="model_loading">Loading model…</string>
+    <string name="model_error">Error: %1$s</string>
+    <string name="model_download_failed">Download failed: %1$s</string>
+    <string name="model_load_failed">Model load failed</string>
+    <string name="translation_error">Translation error: %1$s</string>
+    <string name="lang_auto_detect">Auto Detect</string>
 
-    <!-- Accessibility: content descriptions -->
-    <string name="cd_source_lang_dropdown">选择源语言</string>
-    <string name="cd_target_lang_dropdown">选择目标语言</string>
-    <string name="cd_swap_languages">交换源语言和目标语言</string>
-    <string name="cd_clear_input">清除输入文本</string>
-    <string name="cd_translate_button">开始翻译</string>
-    <string name="cd_copy_result">复制翻译结果到剪贴板</string>
-    <string name="cd_translating_indicator">正在翻译中</string>
-    <string name="cd_download_button">下载翻译模型</string>
-    <string name="cd_download_progress">下载进度 %1$d%%</string>
+    <!-- i18n: Accessibility content descriptions -->
+    <string name="cd_source_lang_dropdown">Select source language</string>
+    <string name="cd_target_lang_dropdown">Select target language</string>
+    <string name="cd_swap_languages">Swap source and target languages</string>
+    <string name="cd_clear_input">Clear input text</string>
+    <string name="cd_translate_button">Start translation</string>
+    <string name="cd_copy_result">Copy translation result to clipboard</string>
+    <string name="cd_translating_indicator">Translating</string>
+    <string name="cd_download_button">Download translation model</string>
+    <string name="cd_download_progress">Download progress %1$d%%</string>
+
+    <!-- i18n: OCR strings -->
+    <string name="ocr_camera">Camera</string>
+    <string name="ocr_gallery">Gallery</string>
+    <string name="ocr_processing">Recognizing…</string>
+    <string name="ocr_retry">Retry</string>
+    <string name="ocr_insert">Insert</string>
+    <string name="ocr_error">Recognition failed: %1$s</string>
+    <string name="ocr_failed">Recognition failed</string>
+    <string name="cd_ocr_button">Open camera to capture text</string>
+    <string name="cd_capture_button">Capture</string>
+    <string name="cd_flip_camera">Flip camera</string>
+    <string name="cd_close_camera">Close camera</string>
+
+    <!-- i18n: Model options -->
+    <string name="model_q2_k_name">Hy-MT2-1.8B Q2_K</string>
+    <string name="model_q2_k_desc">Smallest 0.7GB, fastest, fair quality</string>
+    <string name="model_q3_k_m_name">Hy-MT2-1.8B Q3_K_M</string>
+    <string name="model_q3_k_m_desc">Small 0.8GB, fast, decent quality</string>
+    <string name="model_q4_k_m_name">Hy-MT2-1.8B Q4_K_M</string>
+    <string name="model_q4_k_m_desc">Recommended 1.1GB, speed-quality balance</string>
+    <string name="model_q5_k_m_name">Hy-MT2-1.8B Q5_K_M</string>
+    <string name="model_q5_k_m_desc">Large 1.3GB, better quality</string>
+    <string name="model_q8_0_name">Hy-MT2-1.8B Q8_0</string>
+    <string name="model_q8_0_desc">Largest 1.9GB, best quality</string>
+    <string name="model_select_title">Select Model</string>
+    <string name="model_current">Current: %1$s</string>
+    <string name="model_switch">Switch Model</string>
+    <string name="model_download_confirm">Download %1$s</string>
 </resources>

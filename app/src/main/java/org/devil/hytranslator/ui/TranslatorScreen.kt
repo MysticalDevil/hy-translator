@@ -1,5 +1,12 @@
 package org.devil.hytranslator.ui
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -13,6 +20,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -26,6 +34,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -33,6 +42,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -50,10 +60,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +73,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -69,10 +83,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.devil.hytranslator.R
 import org.devil.hytranslator.data.Language
 import org.devil.hytranslator.data.Languages
+import org.devil.hytranslator.data.ModelOption
+import org.devil.hytranslator.data.ModelOptions
 import org.devil.hytranslator.service.DownloadProgress
+import org.devil.hytranslator.service.OcrEngine
 import org.devil.hytranslator.theme.InputTextStyle
 import org.devil.hytranslator.theme.OutputTextStyle
 
@@ -90,14 +110,43 @@ fun TranslatorScreen(
     isTranslating: Boolean,
     modelStatus: ModelStatus,
     downloadProgress: DownloadProgress?,
+    selectedModel: ModelOption,
+    onSwitchModel: () -> Unit,
     onDownload: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showSourcePicker by remember { mutableStateOf(false) }
     var showTargetPicker by remember { mutableStateOf(false) }
     var showCopyToast by remember { mutableStateOf(false) }
     var swapRotation by remember { mutableStateOf(0f) }
     val clipboardManager = LocalClipboardManager.current
+
+    val ocrEngine = remember { OcrEngine(context) }
+    var ocrFlow by remember { mutableStateOf<OcrFlow>(OcrFlow.Hidden) }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            ocrFlow = OcrFlow.CameraActive
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                processBitmapFromUri(context, uri) { ocrFlow = it }
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { ocrEngine.close() }
+    }
 
     val animatedRotation by animateFloatAsState(
         targetValue = swapRotation,
@@ -109,6 +158,34 @@ fun TranslatorScreen(
             kotlinx.coroutines.delay(1500)
             showCopyToast = false
         }
+    }
+
+    val ocrFailedMsg = stringResource(R.string.ocr_failed)
+
+    val handleOcrBitmap: (Bitmap) -> Unit = { bitmap ->
+        ocrFlow = OcrFlow.Processing
+        scope.launch {
+            try {
+                val text = ocrEngine.recognize(bitmap)
+                ocrFlow = OcrFlow.Result(text)
+            } catch (e: Exception) {
+                ocrFlow = OcrFlow.Error(e.message ?: ocrFailedMsg)
+            }
+        }
+    }
+
+    val requestCamera: () -> Unit = {
+        ocrFlow = OcrFlow.Hidden
+        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+    }
+
+    val requestGallery: () -> Unit = {
+        ocrFlow = OcrFlow.Hidden
+        galleryLauncher.launch(
+            androidx.activity.result.PickVisualMediaRequest(
+                ActivityResultContracts.PickVisualMedia.ImageOnly,
+            ),
+        )
     }
 
     if (showSourcePicker) {
@@ -165,8 +242,10 @@ fun TranslatorScreen(
                     text = inputText,
                     onTextChange = onInputTextChange,
                     isTranslating = isTranslating,
+                    modelReady = modelStatus is ModelStatus.Ready,
                     onTranslate = onTranslate,
                     onCancel = onCancel,
+                    onOcrClick = { ocrFlow = OcrFlow.SourcePicker },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
 
@@ -193,7 +272,7 @@ fun TranslatorScreen(
             }
 
             AnimatedVisibility(
-                visible = modelStatus !is ModelStatus.Ready,
+                visible = true,
                 enter = fadeIn(tween(250)) + expandVertically(
                     tween(250, easing = FastOutSlowInEasing),
                 ),
@@ -204,11 +283,33 @@ fun TranslatorScreen(
                 StatusBanner(
                     modelStatus = modelStatus,
                     downloadProgress = downloadProgress,
+                    selectedModel = selectedModel,
+                    onSwitchModel = onSwitchModel,
                     onDownload = onDownload,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
         }
+
+        if (ocrFlow == OcrFlow.CameraActive) {
+            BackHandler { ocrFlow = OcrFlow.Hidden }
+            CameraCapture(
+                onCaptured = handleOcrBitmap,
+                onDismiss = { ocrFlow = OcrFlow.Hidden },
+            )
+        }
+
+        OcrBottomSheet(
+            ocrFlow = ocrFlow,
+            onDismiss = { ocrFlow = OcrFlow.Hidden },
+            onRequestCamera = requestCamera,
+            onRequestGallery = requestGallery,
+            onTextConfirm = { text ->
+                onInputTextChange(text)
+                ocrFlow = OcrFlow.Hidden
+            },
+            onRetry = { ocrFlow = OcrFlow.SourcePicker },
+        )
 
         if (showCopyToast) {
             Box(
@@ -231,6 +332,54 @@ fun TranslatorScreen(
             }
         }
     }
+}
+
+private suspend fun processBitmapFromUri(
+    context: android.content.Context,
+    uri: android.net.Uri,
+    onFlow: (OcrFlow) -> Unit,
+) {
+    onFlow(OcrFlow.Processing)
+    try {
+        val bitmap = withContext(Dispatchers.IO) {
+            val inputStream = context.contentResolver.openInputStream(uri)
+                ?: throw Exception("无法读取图片")
+            val raw = BitmapFactory.decodeStream(inputStream)
+            inputStream.close()
+            raw ?: throw Exception("图片解析失败")
+        }
+        val corrected = withContext(Dispatchers.IO) {
+            val inputStream = context.contentResolver.openInputStream(uri)
+                ?: return@withContext bitmap
+            val exif = android.media.ExifInterface(inputStream)
+            val orientation = exif.getAttributeInt(
+                android.media.ExifInterface.TAG_ORIENTATION,
+                android.media.ExifInterface.ORIENTATION_NORMAL,
+            )
+            inputStream.close()
+            rotateBitmap(bitmap, orientation)
+        }
+        val ocrEngine = OcrEngine(context)
+        try {
+            val text = ocrEngine.recognize(corrected)
+            onFlow(OcrFlow.Result(text))
+        } finally {
+            ocrEngine.close()
+        }
+    } catch (e: Exception) {
+        onFlow(OcrFlow.Error(e.message ?: context.getString(R.string.ocr_failed)))
+    }
+}
+
+private fun rotateBitmap(bitmap: Bitmap, orientation: Int): Bitmap {
+    val rotation = when (orientation) {
+        android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+        android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+        android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+        else -> return bitmap
+    }
+    val matrix = Matrix().apply { postRotate(rotation) }
+    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
 }
 
 @Composable
@@ -329,8 +478,10 @@ private fun InputArea(
     text: String,
     onTextChange: (String) -> Unit,
     isTranslating: Boolean,
+    modelReady: Boolean,
     onTranslate: () -> Unit,
     onCancel: () -> Unit,
+    onOcrClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     ElevatedCard(
@@ -399,29 +550,46 @@ private fun InputArea(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                if (isTranslating) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.error,
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onOcrClick,
+                        modifier = Modifier.size(40.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CameraAlt,
+                            contentDescription = stringResource(R.string.cd_ocr_button),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
                         )
-                        Spacer(Modifier.width(8.dp))
-                        TextButton(onClick = onCancel) {
-                            Text(
-                                text = stringResource(R.string.action_cancel),
+                    }
+
+                    if (isTranslating) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp,
                                 color = MaterialTheme.colorScheme.error,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            TextButton(onClick = onCancel) {
+                                Text(
+                                    text = stringResource(R.string.action_cancel),
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
+                        }
+                    } else if (text.isNotEmpty()) {
+                        TextButton(
+                            onClick = onTranslate,
+                            enabled = modelReady,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.action_translate),
+                                color = MaterialTheme.colorScheme.primary,
                                 style = MaterialTheme.typography.labelLarge,
                             )
                         }
-                    }
-                } else if (text.isNotEmpty()) {
-                    TextButton(onClick = onTranslate) {
-                        Text(
-                            text = stringResource(R.string.action_translate),
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.labelLarge,
-                        )
                     }
                 }
             }
@@ -522,6 +690,8 @@ private fun OutputCard(
 private fun StatusBanner(
     modelStatus: ModelStatus,
     downloadProgress: DownloadProgress?,
+    selectedModel: ModelOption,
+    onSwitchModel: () -> Unit,
     onDownload: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -546,12 +716,33 @@ private fun StatusBanner(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(onClick = onSwitchModel) {
+                            Text(
+                                text = stringResource(
+                                    R.string.model_current,
+                                    stringResource(selectedModel.nameResId),
+                                ),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
                     FilledTonalButton(
                         onClick = onDownload,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(stringResource(R.string.model_download_btn))
+                        Text(
+                            stringResource(
+                                R.string.model_download_confirm,
+                                stringResource(selectedModel.nameResId),
+                            ),
+                        )
                     }
                 }
 
@@ -616,7 +807,30 @@ private fun StatusBanner(
                     )
                 }
 
-                is ModelStatus.Ready -> {}
+                is ModelStatus.Ready -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(
+                                R.string.model_current,
+                                stringResource(selectedModel.nameResId),
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(onClick = onSwitchModel) {
+                            Text(
+                                text = stringResource(R.string.model_switch),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -700,6 +914,207 @@ private fun LanguagePickerDialog(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun ModelPickerDialog(
+    currentModel: ModelOption,
+    onSelect: (ModelOption) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val recommended = remember { ModelOptions.recommend(context) }
+    val availableMemGb = remember {
+        val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val mi = android.app.ActivityManager.MemoryInfo()
+        am.getMemoryInfo(mi)
+        mi.totalMem / (1024f * 1024f * 1024f)
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth(0.94f),
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 24.dp, end = 12.dp, top = 16.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text(
+                            text = stringResource(R.string.model_select_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = "本机 %,.0f GB · 可用约 %,.0f GB".format(
+                                availableMemGb,
+                                availableMemGb * 0.7f,
+                            ),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.cd_close_camera),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        horizontal = 16.dp,
+                        vertical = 4.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(ModelOptions.all, key = { it.key }) { model ->
+                        val isSelected = model.key == currentModel.key
+                        val isRecommended = model.key == recommended.key
+                        val exceedsAvailable = model.memoryRequirementGb > availableMemGb * 0.7f
+
+                        ElevatedCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelect(model) },
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = CardDefaults.elevatedCardElevation(
+                                defaultElevation = if (isSelected) 2.dp else 0.dp,
+                            ),
+                            colors = CardDefaults.elevatedCardColors(
+                                containerColor = if (isSelected) {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                                } else {
+                                    MaterialTheme.colorScheme.surface
+                                },
+                            ),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f),
+                                    ) {
+                                        Text(
+                                            text = stringResource(model.nameResId),
+                                            style = MaterialTheme.typography.titleSmall.copy(
+                                                fontWeight = if (isSelected) FontWeight.Bold
+                                                else FontWeight.Medium,
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                        if (isRecommended) {
+                                            Spacer(Modifier.width(8.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = MaterialTheme.colorScheme.primary.copy(
+                                                    alpha = 0.12f,
+                                                ),
+                                            ) {
+                                                Text(
+                                                    text = "推荐",
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        fontWeight = FontWeight.Medium,
+                                                    ),
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.padding(
+                                                        horizontal = 6.dp,
+                                                        vertical = 2.dp,
+                                                    ),
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(Modifier.width(8.dp))
+
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isSelected) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.surfaceVariant
+                                        },
+                                        modifier = Modifier.size(24.dp),
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            if (isSelected) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Check,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                                    modifier = Modifier.size(14.dp),
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(Modifier.height(6.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = stringResource(model.descResId),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = if (exceedsAvailable) {
+                                            MaterialTheme.colorScheme.errorContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.surfaceVariant
+                                        },
+                                    ) {
+                                        Text(
+                                            text = "~${model.memoryRequirementGb}GB",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (exceedsAvailable) {
+                                                MaterialTheme.colorScheme.onErrorContainer
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
             }
         }
     }
