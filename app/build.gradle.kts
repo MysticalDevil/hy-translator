@@ -15,10 +15,20 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getProperty("user.home") + "/.keystores/hy-translator-release.jks")
+            storePassword = project.findProperty("RELEASE_STORE_PASSWORD") as String?
+            keyAlias = project.findProperty("RELEASE_KEY_ALIAS") as String?
+            keyPassword = project.findProperty("RELEASE_KEY_PASSWORD") as String?
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
