@@ -7,19 +7,13 @@
     <!-- H -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M22,34h5v40h-5z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M37,34h5v40h-5z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M22,52h20v6h-20z" />
+        android:pathData="M23,36h4v36h-4z M36,36h4v36h-4z M23,52h17v8h-17z" />
     <!-- Y -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M46,34l4,0l-4,24l4,-24l0,0l5,0l4,24l-4,-24l4,0l-5,-10l-4,10z" />
+        android:pathData="M46,36l3,0l-4,26l4,-26l0,0l4,0l4,26l-4,-26l3,0l-5,-12l-3,12z" />
     <!-- T -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M70,34h20v5h-7.5v35h-5v-35h-7.5z" />
+        android:pathData="M68,36h20v4h-8v32h-4v-32h-8z" />
 </vector>
