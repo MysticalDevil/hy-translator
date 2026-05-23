@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
             ?: ModelOptions.recommend(this@MainActivity).key
         var selectedModel by remember { mutableStateOf(ModelOptions.getByKey(savedKey)) }
         var showModelPicker by remember { mutableStateOf(false) }
+        var lastTranslateTime by remember { mutableStateOf(0L) }
 
         LaunchedEffect(selectedModel) {
             generationFlow?.cancel()
@@ -110,7 +111,11 @@ class MainActivity : ComponentActivity() {
                 }
             },
             onTranslate = {
-                if (inputText.isNotBlank() && translator.isModelReady()) {
+                val now = System.currentTimeMillis()
+                if (inputText.isNotBlank() && translator.isModelReady() &&
+                    now - lastTranslateTime > 500
+                ) {
+                    lastTranslateTime = now
                     isTranslating = true
                     outputText = ""
                     generationFlow = lifecycleScope.launch {
