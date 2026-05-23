@@ -11,12 +11,6 @@ Offline translation app for Android, powered by [llama.cpp](https://github.com/g
 - **Model variants** — choose from 5 quantization levels (Q2_K through Q8_0)
 - **Material You** — dynamic color theming that adapts to your wallpaper
 
-## Screenshots
-
-| Light | Dark | Translate | OCR |
-|-------|------|-----------|-----|
-| <img src="screenshots/light.png" width="180"> | <img src="screenshots/dark.png" width="180"> | <img src="screenshots/translate.png" width="180"> | <img src="screenshots/ocr.png" width="180"> |
-
 ## Getting Started
 
 ### Prerequisites

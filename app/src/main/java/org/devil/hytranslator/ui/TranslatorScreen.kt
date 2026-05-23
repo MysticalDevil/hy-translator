@@ -54,6 +54,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -620,11 +621,10 @@ private fun OutputCard(
         targetLang.name
     }
 
-    ElevatedCard(
+    OutlinedCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
-        colors = CardDefaults.elevatedCardColors(
+        colors = CardDefaults.outlinedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),
     ) {
