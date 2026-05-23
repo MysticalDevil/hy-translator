@@ -7,25 +7,25 @@
     <!-- H -->
     <path
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="3.5"
+        android:strokeWidth="3"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M24,33v42 M37,33v42 M24,54h13" />
+        android:pathData="M30,38v32 M43,38v32 M30,54h13" />
     <!-- Y -->
     <path
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="3.5"
+        android:strokeWidth="3"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M46,33l7,21 M60,33l-7,21 M53,54v21" />
+        android:pathData="M48,38l8,16 M64,38l-8,16 M56,54v16" />
     <!-- T -->
     <path
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="3.5"
+        android:strokeWidth="3"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M70,33h16 M78,33v42" />
+        android:pathData="M68,38h14 M75,38v32" />
 </vector>
