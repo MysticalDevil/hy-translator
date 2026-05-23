@@ -8,7 +8,7 @@
 - **大模型驱动** — 使用 Hy-MT2-1.8B 大语言模型，通过 llama.cpp 推理
 - **完全离线** — 翻译全程本地运算，无云端依赖
 - **OCR 输入** — 通过 ML Kit 拍照或从相册提取文字
-- **多档模型** — 5 种量化级别可选（Q2_K 至 Q8_0）
+- **多档模型** — 3 种量化级别可选（Q4_K_M、Q6_K、Q8_0）
 - **Material You** — 动态取色主题，随壁纸自动适配
 
 ## 快速开始
@@ -38,20 +38,35 @@
 
 ```
 app/                          # 主应用模块
-├── MainActivity.kt           # 单 Activity + 全局状态管理
+├── MainActivity.kt           # 单 Activity，薄胶合层（~90 行）
+├── domain/
+│   ├── model/                # 纯 Kotlin 领域模型
+│   │   ├── Language.kt       # 语言数据（代码、名称、英文名）
+│   │   ├── ModelOption.kt    # 模型变体定义
+│   │   ├── ModelStatus.kt    # 模型生命周期状态（sealed class）
+│   │   └── DownloadProgress.kt  # 下载进度事件
+│   └── repository/           # 仓库接口（抽象层）
+│       ├── TranslatorRepository.kt
+│       ├── ModelRepository.kt
+│       └── LanguageRepository.kt
 ├── data/
 │   ├── Languages.kt          # 35 种语言定义
-│   └── Models.kt             # 模型变体 + 内存推荐算法
+│   ├── Models.kt             # 模型目录 + 内存感知推荐
+│   └── repository/           # 仓库实现
+│       ├── TranslatorRepositoryImpl.kt
+│       ├── ModelRepositoryImpl.kt
+│       └── LanguageRepositoryImpl.kt
 ├── service/
 │   ├── TranslatorEngine.kt   # 翻译封装（Prompt 构建）
 │   ├── ModelDownloader.kt    # GGUF 模型下载（OkHttp + 断点续传）
 │   └── OcrEngine.kt          # ML Kit OCR 封装
 ├── ui/
 │   ├── TranslatorScreen.kt   # 主界面（语言栏、输入区、输出卡）
+│   ├── TranslatorViewModel.kt  # 状态管理 + 业务编排
+│   ├── ModelPickerDialog.kt  # 模型选择弹窗
 │   ├── CameraCapture.kt      # CameraX 全屏拍照
 │   ├── OcrBottomSheet.kt     # OCR 流程底部弹窗
-│   ├── OcrFlow.kt            # OCR 状态机
-│   └── ModelStatus.kt        # 模型生命周期状态
+│   └── OcrFlow.kt            # OCR 状态机
 └── theme/
     ├── Theme.kt              # Material 3 主题（Monet 动态取色）
     └── Type.kt               # 字体排版定义
@@ -66,6 +81,18 @@ lib/                          # Native 推理引擎库
 llama.cpp/                    # Git 子模块
 ```
 
+### 架构模式
+
+```
+presentation (ui/) ──→ domain/ ←── data/
+                            ↑
+                        core（无依赖）
+```
+
+- **domain** — Repository 接口，纯 Kotlin 模型，零 Android 依赖
+- **data** — Repository 实现，封装 TranslatorEngine/ModelDownloader
+- **presentation** — ViewModel + Compose UI，通过 StateFlow 读取状态
+
 ### 核心依赖
 
 | 库 | 用途 |
@@ -79,21 +106,17 @@ llama.cpp/                    # Git 子模块
 ### 数据流
 
 ```
-用户输入 → TranslatorScreen
-                │
-                ▼
-         MainActivity (状态管理)
-                │
-    ┌───────────┼───────────┐
-    ▼           ▼           ▼
- 输入区      输出卡片     状态横幅
-    │           │           │
-    │    ┌──────┘           │
-    ▼    ▼                  ▼
-TranslatorEngine    ModelDownloader
-    │                    │
-    ▼                    ▼
-llama.cpp (Native)   HuggingFace
+用户输入 → TranslatorScreen → ViewModel (StateFlow)
+                                    │
+                    ┌───────────────┼───────────────┐
+                    ▼               ▼               ▼
+           TranslatorRepository  ModelRepository  LanguageRepository
+                    │               │               │
+                    ▼               ▼               ▼
+            TranslatorEngine.kt  ModelDownloader  Languages.kt
+                    │               │
+                    ▼               ▼
+            llama.cpp (Native)   HuggingFace
 ```
 
 ## 开发

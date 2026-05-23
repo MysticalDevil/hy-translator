@@ -8,7 +8,7 @@ Offline translation app for Android, powered by [llama.cpp](https://github.com/g
 - **AI-powered** — uses Hy-MT2-1.8B large language model via llama.cpp
 - **100% offline** — all translation runs locally, no cloud dependency
 - **OCR input** — capture text from camera or gallery via ML Kit
-- **Model variants** — choose from 5 quantization levels (Q2_K through Q8_0)
+- **Model variants** — choose from 3 quantization levels (Q4_K_M, Q6_K, Q8_0)
 - **Material You** — dynamic color theming that adapts to your wallpaper
 
 ## Getting Started
@@ -38,20 +38,35 @@ Offline translation app for Android, powered by [llama.cpp](https://github.com/g
 
 ```
 app/                          # Main application module
-├── MainActivity.kt           # Single Activity + state management
+├── MainActivity.kt           # Single Activity, thin wiring (~90 lines)
+├── domain/
+│   ├── model/                # Pure Kotlin domain models
+│   │   ├── Language.kt       # Language data (code, name, englishName)
+│   │   ├── ModelOption.kt    # Model variant definition
+│   │   ├── ModelStatus.kt    # Model lifecycle states (sealed class)
+│   │   └── DownloadProgress.kt  # Download progress events
+│   └── repository/           # Repository interfaces (abstractions)
+│       ├── TranslatorRepository.kt
+│       ├── ModelRepository.kt
+│       └── LanguageRepository.kt
 ├── data/
-│   ├── Languages.kt          # Language definitions (35 languages)
-│   └── Models.kt             # Model variants + memory recommendation
+│   ├── Languages.kt          # Language catalog (35 languages)
+│   ├── Models.kt             # Model catalog + memory-aware recommendation
+│   └── repository/           # Repository implementations
+│       ├── TranslatorRepositoryImpl.kt
+│       ├── ModelRepositoryImpl.kt
+│       └── LanguageRepositoryImpl.kt
 ├── service/
 │   ├── TranslatorEngine.kt   # Translation wrapper (prompt building)
 │   ├── ModelDownloader.kt    # GGUF model download (OkHttp + resume)
 │   └── OcrEngine.kt          # ML Kit OCR wrapper
 ├── ui/
 │   ├── TranslatorScreen.kt   # Main UI (LanguageBar, InputArea, OutputCard)
+│   ├── TranslatorViewModel.kt  # State management + business orchestration
+│   ├── ModelPickerDialog.kt  # Model selection dialog
 │   ├── CameraCapture.kt      # CameraX full-screen capture
 │   ├── OcrBottomSheet.kt     # OCR flow bottom sheet
-│   ├── OcrFlow.kt            # OCR state machine
-│   └── ModelStatus.kt        # Model lifecycle states
+│   └── OcrFlow.kt            # OCR state machine
 └── theme/
     ├── Theme.kt              # Material 3 theme (Monet dynamic color)
     └── Type.kt               # Typography definitions
@@ -66,6 +81,18 @@ lib/                          # Native inference library
 llama.cpp/                    # Git submodule
 ```
 
+### Architecture Pattern
+
+```
+presentation (ui/) ──→ domain/ ←── data/
+                            ↑
+                        core (no deps)
+```
+
+- **domain** — Repository interfaces, pure Kotlin models, zero Android deps
+- **data** — Repository implementations, wraps TranslatorEngine/ModelDownloader
+- **presentation** — ViewModel + Compose UI, reads state via StateFlow
+
 ### Key Dependencies
 
 | Library | Purpose |
@@ -79,21 +106,17 @@ llama.cpp/                    # Git submodule
 ### Data Flow
 
 ```
-User Input → TranslatorScreen
-                │
-                ▼
-         MainActivity (State)
-                │
-    ┌───────────┼───────────┐
-    ▼           ▼           ▼
- InputArea   OutputCard   StatusBanner
-    │           │           │
-    │    ┌──────┘           │
-    ▼    ▼                  ▼
- TranslatorEngine    ModelDownloader
-    │                    │
-    ▼                    ▼
-llama.cpp (native)   HuggingFace
+User Input → TranslatorScreen → ViewModel (StateFlow)
+                                    │
+                    ┌───────────────┼───────────────┐
+                    ▼               ▼               ▼
+           TranslatorRepository  ModelRepository  LanguageRepository
+                    │               │               │
+                    ▼               ▼               ▼
+            TranslatorEngine.kt  ModelDownloader  Languages.kt
+                    │               │
+                    ▼               ▼
+            llama.cpp (native)  HuggingFace
 ```
 
 ## Development
