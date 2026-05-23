@@ -27,6 +27,7 @@ import org.devil.hytranslator.theme.MyApplicationTheme
 import org.devil.hytranslator.ui.ModelPickerDialog
 import org.devil.hytranslator.ui.ModelStatus
 import org.devil.hytranslator.ui.TranslatorScreen
+import androidx.core.content.edit
 
 class MainActivity : ComponentActivity() {
 
@@ -65,13 +66,13 @@ class MainActivity : ComponentActivity() {
             ?: ModelOptions.recommend(this@MainActivity).key
         var selectedModel by remember { mutableStateOf(ModelOptions.getByKey(savedKey)) }
         var showModelPicker by remember { mutableStateOf(false) }
-        var lastTranslateTime by remember { mutableStateOf(0L) }
+        var lastTranslateTime by remember { mutableLongStateOf(0L) }
 
         LaunchedEffect(selectedModel) {
             generationFlow?.cancel()
             generationFlow = null
             isTranslating = false
-            prefs.edit().putString("model_key", selectedModel.key).apply()
+            prefs.edit { putString("model_key", selectedModel.key) }
             downloader = ModelDownloader(this@MainActivity, selectedModel.filename)
             if (downloader?.isModelDownloaded() == true) {
                 loadModel { modelStatus = it }

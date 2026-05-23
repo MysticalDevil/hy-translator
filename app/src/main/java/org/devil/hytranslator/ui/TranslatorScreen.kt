@@ -64,6 +64,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -73,6 +74,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -120,8 +122,8 @@ fun TranslatorScreen(
     var showSourcePicker by remember { mutableStateOf(false) }
     var showTargetPicker by remember { mutableStateOf(false) }
     var showCopyToast by remember { mutableStateOf(false) }
-    var swapRotation by remember { mutableStateOf(0f) }
-    val clipboardManager = LocalClipboardManager.current
+    var swapRotation by remember { mutableFloatStateOf(0f) }
+    val clipboardManager = LocalClipboard.current
 
     val ocrEngine = remember { OcrEngine(context) }
     var ocrFlow by remember { mutableStateOf<OcrFlow>(OcrFlow.Hidden) }
@@ -359,10 +361,10 @@ private suspend fun processBitmapFromUri(
         val corrected = withContext(Dispatchers.IO) {
             val inputStream = context.contentResolver.openInputStream(uri)
                 ?: return@withContext bitmap
-            val exif = android.media.ExifInterface(inputStream)
+            val exif = androidx.exifinterface.media.ExifInterface(inputStream)
             val orientation = exif.getAttributeInt(
-                android.media.ExifInterface.TAG_ORIENTATION,
-                android.media.ExifInterface.ORIENTATION_NORMAL,
+                androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
+                androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL,
             )
             inputStream.close()
             rotateBitmap(bitmap, orientation)
@@ -381,9 +383,9 @@ private suspend fun processBitmapFromUri(
 
 private fun rotateBitmap(bitmap: Bitmap, orientation: Int): Bitmap {
     val rotation = when (orientation) {
-        android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-        android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-        android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
         else -> return bitmap
     }
     val matrix = Matrix().apply { postRotate(rotation) }

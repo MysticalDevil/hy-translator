@@ -10,6 +10,7 @@ import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import androidx.core.graphics.scale
 
 class OcrEngine(private val context: Context) {
 
@@ -45,6 +46,6 @@ class OcrEngine(private val context: Context) {
         val scale = maxSize.toFloat() / maxOf(width, height)
         val newWidth = (width * scale).toInt()
         val newHeight = (height * scale).toInt()
-        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+        return bitmap.scale(newWidth, newHeight)
     }
 }
