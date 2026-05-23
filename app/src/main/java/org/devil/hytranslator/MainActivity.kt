@@ -84,23 +84,26 @@ class MainActivity : ComponentActivity() {
                 currentModel = selectedModel,
                 onSelect = { model ->
                     selectedModel = model
+                    showModelPicker = false
                 },
-                onDismiss = { },
+                onDismiss = { showModelPicker = false },
             )
         }
 
         TranslatorScreen(
             inputText = inputText,
-            onInputTextChange = { },
+            onInputTextChange = { inputText = it },
             outputText = outputText,
             sourceLang = sourceLang,
             onSourceLangChange = { lang ->
+                sourceLang = lang
                 if (lang.code == targetLang.code) {
                     targetLang = Languages.targetLanguages().first { it.code != lang.code }
                 }
             },
             targetLang = targetLang,
             onTargetLangChange = { lang ->
+                targetLang = lang
                 if (lang.code == sourceLang.code && !Languages.isSourceOnly(sourceLang.code)) {
                     sourceLang = Languages.sourceLanguages().first { it.code != lang.code }
                 }
@@ -111,6 +114,7 @@ class MainActivity : ComponentActivity() {
                     now - lastTranslateTime > 500
                 ) {
                     lastTranslateTime = now
+                    isTranslating = true
                     outputText = ""
                     generationFlow = lifecycleScope.launch {
                         translator.translate(
@@ -120,25 +124,30 @@ class MainActivity : ComponentActivity() {
                         ).collect { token ->
                             outputText += token
                         }
+                        isTranslating = false
                         generationFlow = null
                     }
                 }
             },
             onCancel = {
                 generationFlow?.cancel()
+                isTranslating = false
                 generationFlow = null
             },
             isTranslating = isTranslating,
             modelStatus = modelStatus,
             downloadProgress = downloadProgress,
             selectedModel = selectedModel,
-            onSwitchModel = { },
+            onSwitchModel = { showModelPicker = true },
             onDownload = {
+                modelStatus = ModelStatus.Downloading
+                downloadProgress = null
                 lifecycleScope.launch {
                     downloader?.download()?.collect { progress ->
+                        downloadProgress = progress
                         when (progress) {
                             is DownloadProgress.Completed -> {
-                                loadModel { }
+                                loadModel { modelStatus = it }
                             }
                             is DownloadProgress.Error -> {}
                             else -> {}

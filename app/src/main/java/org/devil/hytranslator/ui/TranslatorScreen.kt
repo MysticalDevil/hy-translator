@@ -116,7 +116,7 @@ fun TranslatorScreen(
     var showSourcePicker by remember { mutableStateOf(false) }
     var showTargetPicker by remember { mutableStateOf(false) }
     var showCopyToast by remember { mutableStateOf(false) }
-    var swapRotation by remember { mutableStateOf(0f) }
+    var swapRotation by remember { mutableFloatStateOf(0f) }
 
     val ocrEngine = remember { OcrEngine() }
     var ocrFlow by remember { mutableStateOf<OcrFlow>(OcrFlow.Hidden) }

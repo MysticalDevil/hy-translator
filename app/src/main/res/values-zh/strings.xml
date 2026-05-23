@@ -3,31 +3,20 @@
     <string name="app_name">Hy 翻译器</string>
 
     <!-- i18n: Main UI strings -->
-    <string name="title_translator">Hy 翻译器</string>
-    <string name="label_source_lang">源语言</string>
-    <string name="label_target_lang">目标语言</string>
-    <string name="label_input_text">输入文本</string>
-    <string name="label_output_text">翻译结果</string>
     <string name="hint_input_text">请输入要翻译的文本…</string>
     <string name="action_translate">翻译</string>
     <string name="action_cancel">取消</string>
     <string name="action_clear">清除</string>
-    <string name="action_swap_lang">交换语言</string>
-    <string name="action_copy">复制</string>
     <string name="copied_to_clipboard">已复制到剪贴板</string>
     <string name="translating">翻译中…</string>
 
     <!-- i18n: Model management strings -->
     <string name="model_download_title">需要下载模型文件</string>
     <string name="model_download_desc">首次使用需要下载翻译模型 (Hy-MT2-1.8B-Q4_K_M, ~1.1GB)</string>
-    <string name="model_download_btn">下载模型 (1.1GB)</string>
     <string name="model_downloading">下载中: %1$.1f / %2$.1f MB</string>
-    <string name="model_download_starting">开始下载…</string>
     <string name="model_loading">加载模型中…</string>
     <string name="model_error">错误: %1$s</string>
-    <string name="model_download_failed">下载失败: %1$s</string>
     <string name="model_load_failed">模型加载失败</string>
-    <string name="translation_error">翻译错误: %1$s</string>
     <string name="lang_auto_detect">自动检测</string>
 
     <!-- i18n: Accessibility content descriptions -->
@@ -35,11 +24,7 @@
     <string name="cd_target_lang_dropdown">选择目标语言</string>
     <string name="cd_swap_languages">交换源语言和目标语言</string>
     <string name="cd_clear_input">清除输入文本</string>
-    <string name="cd_translate_button">开始翻译</string>
     <string name="cd_copy_result">复制翻译结果到剪贴板</string>
-    <string name="cd_translating_indicator">正在翻译中</string>
-    <string name="cd_download_button">下载翻译模型</string>
-    <string name="cd_download_progress">下载进度 %1$d%%</string>
 
     <!-- i18n: OCR strings -->
     <string name="ocr_camera">拍照</string>
@@ -50,7 +35,6 @@
     <string name="ocr_error">识别失败: %1$s</string>
     <string name="ocr_failed">识别失败</string>
     <string name="cd_ocr_button">打开相机拍照识别文字</string>
-    <string name="cd_capture_button">拍照</string>
     <string name="cd_flip_camera">翻转镜头</string>
     <string name="cd_close_camera">关闭相机</string>
 

@@ -2,31 +2,20 @@
     <string name="app_name">Hy Translator</string>
 
     <!-- i18n: Main UI strings -->
-    <string name="title_translator">Hy Translator</string>
-    <string name="label_source_lang">Source Language</string>
-    <string name="label_target_lang">Target Language</string>
-    <string name="label_input_text">Input Text</string>
-    <string name="label_output_text">Translation Result</string>
     <string name="hint_input_text">Enter text to translate…</string>
     <string name="action_translate">Translate</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_clear">Clear</string>
-    <string name="action_swap_lang">Swap Languages</string>
-    <string name="action_copy">Copy</string>
     <string name="copied_to_clipboard">Copied to clipboard</string>
     <string name="translating">Translating…</string>
 
     <!-- i18n: Model management strings -->
     <string name="model_download_title">Model download required</string>
     <string name="model_download_desc">First-time use requires downloading the translation model (Hy-MT2-1.8B-Q4_K_M, ~1.1GB)</string>
-    <string name="model_download_btn">Download Model (1.1GB)</string>
     <string name="model_downloading">Downloading: %1$.1f / %2$.1f MB</string>
-    <string name="model_download_starting">Starting download…</string>
     <string name="model_loading">Loading model…</string>
     <string name="model_error">Error: %1$s</string>
-    <string name="model_download_failed">Download failed: %1$s</string>
     <string name="model_load_failed">Model load failed</string>
-    <string name="translation_error">Translation error: %1$s</string>
     <string name="lang_auto_detect">Auto Detect</string>
 
     <!-- i18n: Accessibility content descriptions -->
@@ -34,11 +23,7 @@
     <string name="cd_target_lang_dropdown">Select target language</string>
     <string name="cd_swap_languages">Swap source and target languages</string>
     <string name="cd_clear_input">Clear input text</string>
-    <string name="cd_translate_button">Start translation</string>
     <string name="cd_copy_result">Copy translation result to clipboard</string>
-    <string name="cd_translating_indicator">Translating</string>
-    <string name="cd_download_button">Download translation model</string>
-    <string name="cd_download_progress">Download progress %1$d%%</string>
 
     <!-- i18n: OCR strings -->
     <string name="ocr_camera">Camera</string>
@@ -49,7 +34,6 @@
     <string name="ocr_error">Recognition failed: %1$s</string>
     <string name="ocr_failed">Recognition failed</string>
     <string name="cd_ocr_button">Open camera to capture text</string>
-    <string name="cd_capture_button">Capture</string>
     <string name="cd_flip_camera">Flip camera</string>
     <string name="cd_close_camera">Close camera</string>
 
