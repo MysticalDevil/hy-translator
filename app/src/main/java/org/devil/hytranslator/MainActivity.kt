@@ -12,6 +12,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
+import com.arm.aichat.InferenceEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -160,7 +161,12 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 val path = downloader?.getModelPath() ?: return@launch
-                withContext(Dispatchers.Main) { onStatus(ModelStatus.Loading) }
+                val currentState = translator.state.value
+                if (currentState is InferenceEngine.State.ModelReady ||
+                    currentState is InferenceEngine.State.Generating
+                ) {
+                    translator.cancel()
+                }
                 translator.loadModel(path)
                 withContext(Dispatchers.Main) { onStatus(ModelStatus.Ready) }
             } catch (e: Exception) {
