@@ -24,7 +24,6 @@ import org.devil.hytranslator.domain.repository.TranslatorRepository
 class TranslatorViewModel(application: Application) : AndroidViewModel(application) {
 
     private val translatorRepository: TranslatorRepository = TranslatorRepositoryImpl(application)
-    private val modelRepository: ModelRepositoryImpl = ModelRepositoryImpl(application)
     private val languageRepository: LanguageRepository = object : LanguageRepository {
         override fun allLanguages(): List<Language> =
             org.devil.hytranslator.data.Languages.all
@@ -60,6 +59,7 @@ class TranslatorViewModel(application: Application) : AndroidViewModel(applicati
     val downloadProgress: StateFlow<DownloadProgress?> = _downloadProgress.asStateFlow()
 
     private val prefs = application.getSharedPreferences("model_prefs", 0)
+    private val modelRepository: ModelRepositoryImpl
     private var _selectedModel: ModelOption
 
     init {
@@ -67,10 +67,15 @@ class TranslatorViewModel(application: Application) : AndroidViewModel(applicati
         _selectedModel = if (savedKey != null) {
             ModelOptions.getByKey(savedKey)
         } else {
-            modelRepository.getRecommended()
+            ModelOptions.all.first()
+        }
+        modelRepository = ModelRepositoryImpl(application, _selectedModel.filename)
+
+        if (savedKey == null) {
+            _selectedModel = modelRepository.getRecommended()
+            modelRepository.setModelFilename(_selectedModel.filename)
         }
         prefs.edit { putString("model_key", _selectedModel.key) }
-        modelRepository.setModelFilename(_selectedModel.filename)
 
         if (modelRepository.isModelDownloaded()) {
             loadModel()
@@ -210,7 +215,7 @@ class TranslatorViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             try {
                 if (translatorRepository.isModelReady()) {
-                    translatorRepository.cancel()
+                    translatorRepository.unloadModel()
                 }
                 translatorRepository.loadModel(modelRepository.getModelPath())
                 _modelStatus.value = ModelStatus.Ready

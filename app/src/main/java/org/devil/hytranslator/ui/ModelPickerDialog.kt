@@ -162,28 +162,24 @@ fun ModelPickerDialog(
                             }
                         }
                     }
-                    item {
-                        HorizontalDivider()
-                    }
-                    item {
-                        TextButton(
-                            onClick = {
-                                onClearAllModels()
-                                onDismiss()
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
-                        ) {
-                            Text(
-                                text = stringResource(R.string.model_clear_all),
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                        }
-                        Spacer(Modifier.height(8.dp))
-                    }
                 }
+                HorizontalDivider()
+                TextButton(
+                    onClick = {
+                        onClearAllModels()
+                        onDismiss()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.model_clear_all),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
             }
         }
     }

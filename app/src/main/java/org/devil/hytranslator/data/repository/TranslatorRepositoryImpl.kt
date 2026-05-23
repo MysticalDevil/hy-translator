@@ -30,8 +30,8 @@ class TranslatorRepositoryImpl(context: Context) : TranslatorRepository {
         return engine.translate(text, sourceLang, targetLang, maxTokens)
     }
 
-    override fun cancel() {
-        engine.cancel()
+    override fun unloadModel() {
+        engine.unloadModel()
     }
 
     override fun destroy() {

@@ -10,22 +10,20 @@ import org.devil.hytranslator.service.ModelDownloader
 
 class ModelRepositoryImpl(
     private val context: Context,
+    filename: String,
 ) : ModelRepository {
 
-    private var downloader: ModelDownloader? = null
+    private var downloader: ModelDownloader = ModelDownloader(context, filename)
 
     fun setModelFilename(filename: String) {
         downloader = ModelDownloader(context, filename)
     }
 
-    private fun requireDownloader(): ModelDownloader =
-        downloader ?: error("Model filename not set. Call setModelFilename() first.")
+    override fun getModelPath(): String = downloader.getModelPath()
 
-    override fun getModelPath(): String = requireDownloader().getModelPath()
+    override fun isModelDownloaded(): Boolean = downloader.isModelDownloaded()
 
-    override fun isModelDownloaded(): Boolean = requireDownloader().isModelDownloaded()
-
-    override fun download(): Flow<DownloadProgress> = requireDownloader().download()
+    override fun download(): Flow<DownloadProgress> = downloader.download()
 
     override fun getRecommended(): ModelOption = ModelOptions.recommend(context)
 

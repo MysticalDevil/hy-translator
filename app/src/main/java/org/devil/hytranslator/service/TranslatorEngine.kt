@@ -31,7 +31,7 @@ class TranslatorEngine(context: Context) {
         return engine.sendUserPrompt(prompt, predictLength = maxTokens)
     }
 
-    fun cancel() {
+    fun unloadModel() {
         engine.cleanUp()
     }
 

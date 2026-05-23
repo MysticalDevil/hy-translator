@@ -19,7 +19,7 @@ interface TranslatorRepository {
         maxTokens: Int = 4096,
     ): Flow<String>
 
-    fun cancel()
+    fun unloadModel()
 
     fun destroy()
 }

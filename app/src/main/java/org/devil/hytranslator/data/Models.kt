@@ -49,7 +49,3 @@ object ModelOptions {
         return mi.totalMem / (1024f * 1024f * 1024f)
     }
 }
-
-object ModelDownloader {
-    const val HF_BASE_URL = "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/main/"
-}

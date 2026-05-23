@@ -3,6 +3,7 @@ package org.devil.hytranslator.ui
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.util.Log
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -137,7 +138,9 @@ fun CameraCapture(
                                     onCaptured(bitmap)
                                 }
 
-                                override fun onError(ex: ImageCaptureException) {}
+                                override fun onError(ex: ImageCaptureException) {
+                                    Log.e("CameraCapture", "Image capture failed", ex)
+                                }
                             },
                         )
                     },
