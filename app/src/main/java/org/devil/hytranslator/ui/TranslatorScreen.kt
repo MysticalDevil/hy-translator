@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -498,7 +499,7 @@ private fun InputArea(
                 onValueChange = onTextChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 56.dp)
+                    .padding(start = 20.dp, end = 68.dp, top = 20.dp, bottom = 56.dp)
                     .defaultMinSize(minHeight = 160.dp),
                 textStyle = InputTextStyle.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -583,6 +584,10 @@ private fun InputArea(
                         TextButton(
                             onClick = onTranslate,
                             enabled = modelReady,
+                            colors = ButtonDefaults.textButtonColors(
+                                disabledContentColor = MaterialTheme.colorScheme.onSurface
+                                    .copy(alpha = 0.38f),
+                            ),
                         ) {
                             Text(
                                 text = stringResource(R.string.action_translate),
@@ -716,23 +721,7 @@ private fun StatusBanner(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(onClick = onSwitchModel) {
-                            Text(
-                                text = stringResource(
-                                    R.string.model_current,
-                                    stringResource(selectedModel.nameResId),
-                                ),
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(12.dp))
                     FilledTonalButton(
                         onClick = onDownload,
                         modifier = Modifier.fillMaxWidth(),
@@ -781,7 +770,7 @@ private fun StatusBanner(
                         progress = { progress.coerceIn(0f, 1f) },
                         modifier = Modifier.fillMaxWidth(),
                         color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        trackColor = MaterialTheme.colorScheme.surface,
                     )
                 }
 
@@ -795,7 +784,7 @@ private fun StatusBanner(
                     LinearProgressIndicator(
                         modifier = Modifier.fillMaxWidth(),
                         color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        trackColor = MaterialTheme.colorScheme.surface,
                     )
                 }
 
@@ -807,29 +796,30 @@ private fun StatusBanner(
                     )
                 }
 
-                is ModelStatus.Ready -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(
-                                R.string.model_current,
-                                stringResource(selectedModel.nameResId),
-                            ),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        TextButton(onClick = onSwitchModel) {
-                            Text(
-                                text = stringResource(R.string.model_switch),
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                        }
-                    }
+                is ModelStatus.Ready -> {}
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string.model_current,
+                        stringResource(selectedModel.nameResId),
+                    ),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onSwitchModel) {
+                    Text(
+                        text = stringResource(R.string.model_switch),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
                 }
             }
         }
