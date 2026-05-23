@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.devil.hytranslator.domain.model.DownloadProgress
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
@@ -85,11 +86,4 @@ class ModelDownloader(
     companion object {
         const val HF_BASE_URL = "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/main/"
     }
-}
-
-sealed class DownloadProgress {
-    data class Started(val total: Long, val existing: Long) : DownloadProgress()
-    data class Downloading(val downloaded: Long, val total: Long) : DownloadProgress()
-    data class Completed(val path: String) : DownloadProgress()
-    data class Error(val message: String) : DownloadProgress()
 }

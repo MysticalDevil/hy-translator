@@ -10,26 +10,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.lifecycleScope
-import com.arm.aichat.InferenceEngine
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.devil.hytranslator.data.Languages
-import org.devil.hytranslator.data.ModelOptions
-import org.devil.hytranslator.service.DownloadProgress
-import org.devil.hytranslator.service.ModelDownloader
-import org.devil.hytranslator.service.TranslatorEngine
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import org.devil.hytranslator.theme.MyApplicationTheme
 import org.devil.hytranslator.ui.ModelPickerDialog
-import org.devil.hytranslator.ui.ModelStatus
 import org.devil.hytranslator.ui.TranslatorScreen
-import androidx.core.content.edit
+import org.devil.hytranslator.ui.TranslatorViewModel
 
 class MainActivity : ComponentActivity() {
-
-    private val translator by lazy { TranslatorEngine(this) }
-    private var downloader: ModelDownloader? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,41 +37,24 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun TranslatorApp() {
-        var inputText by remember { mutableStateOf("") }
-        var outputText by remember { mutableStateOf("") }
-        var sourceLang by remember { mutableStateOf(Languages.all[0]) }
-        var targetLang by remember { mutableStateOf(Languages.all[2]) }
-        var isTranslating by remember { mutableStateOf(false) }
-        var modelStatus by remember { mutableStateOf<ModelStatus>(ModelStatus.NotDownloaded) }
-        var downloadProgress by remember { mutableStateOf<DownloadProgress?>(null) }
-        var generationFlow by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-
-        val prefs = remember { getSharedPreferences("model_prefs", MODE_PRIVATE) }
-        val savedKey = prefs.getString("model_key", null)
-            ?: ModelOptions.recommend(this@MainActivity).key
-        var selectedModel by remember { mutableStateOf(ModelOptions.getByKey(savedKey)) }
+        val viewModel: TranslatorViewModel = viewModel()
         var showModelPicker by remember { mutableStateOf(false) }
         var lastTranslateTime by remember { mutableLongStateOf(0L) }
 
-        LaunchedEffect(selectedModel) {
-            generationFlow?.cancel()
-            generationFlow = null
-            isTranslating = false
-            prefs.edit { putString("model_key", selectedModel.key) }
-            downloader = ModelDownloader(this@MainActivity, selectedModel.filename)
-            if (downloader?.isModelDownloaded() == true) {
-                loadModel { modelStatus = it }
-            } else {
-                modelStatus = ModelStatus.NotDownloaded
-                downloadProgress = null
-            }
-        }
+        val inputText by viewModel.inputText.collectAsStateWithLifecycle()
+        val outputText by viewModel.outputText.collectAsStateWithLifecycle()
+        val sourceLang by viewModel.sourceLang.collectAsStateWithLifecycle()
+        val targetLang by viewModel.targetLang.collectAsStateWithLifecycle()
+        val isTranslating by viewModel.isTranslating.collectAsStateWithLifecycle()
+        val modelStatus by viewModel.modelStatus.collectAsStateWithLifecycle()
+        val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
+        val selectedModel by viewModel.selectedModel.collectAsStateWithLifecycle()
 
         if (showModelPicker) {
             ModelPickerDialog(
                 currentModel = selectedModel,
                 onSelect = { model ->
-                    selectedModel = model
+                    viewModel.onSelectModel(model)
                     showModelPicker = false
                 },
                 onDismiss = { showModelPicker = false },
@@ -92,94 +63,27 @@ class MainActivity : ComponentActivity() {
 
         TranslatorScreen(
             inputText = inputText,
-            onInputTextChange = { inputText = it },
+            onInputTextChange = viewModel::onInputTextChange,
             outputText = outputText,
             sourceLang = sourceLang,
-            onSourceLangChange = { lang ->
-                sourceLang = lang
-                if (lang.code == targetLang.code) {
-                    targetLang = Languages.targetLanguages().first { it.code != lang.code }
-                }
-            },
+            onSourceLangChange = viewModel::onSourceLangChange,
             targetLang = targetLang,
-            onTargetLangChange = { lang ->
-                targetLang = lang
-                if (lang.code == sourceLang.code && !Languages.isSourceOnly(sourceLang.code)) {
-                    sourceLang = Languages.sourceLanguages().first { it.code != lang.code }
-                }
-            },
+            onTargetLangChange = viewModel::onTargetLangChange,
             onTranslate = {
                 val now = System.currentTimeMillis()
-                if (inputText.isNotBlank() && translator.isModelReady() &&
-                    now - lastTranslateTime > 500
-                ) {
+                if (now - lastTranslateTime > 500) {
                     lastTranslateTime = now
-                    isTranslating = true
-                    outputText = ""
-                    generationFlow = lifecycleScope.launch {
-                        translator.translate(
-                            text = inputText,
-                            sourceLang = sourceLang,
-                            targetLang = targetLang,
-                        ).collect { token ->
-                            outputText += token
-                        }
-                        isTranslating = false
-                        generationFlow = null
-                    }
+                    viewModel.onTranslate()
                 }
             },
-            onCancel = {
-                generationFlow?.cancel()
-                isTranslating = false
-                generationFlow = null
-            },
+            onCancel = viewModel::onCancel,
             isTranslating = isTranslating,
             modelStatus = modelStatus,
             downloadProgress = downloadProgress,
             selectedModel = selectedModel,
             onSwitchModel = { showModelPicker = true },
-            onDownload = {
-                modelStatus = ModelStatus.Downloading
-                downloadProgress = null
-                lifecycleScope.launch {
-                    downloader?.download()?.collect { progress ->
-                        downloadProgress = progress
-                        when (progress) {
-                            is DownloadProgress.Completed -> {
-                                loadModel { modelStatus = it }
-                            }
-                            is DownloadProgress.Error -> {}
-                            else -> {}
-                        }
-                    }
-                }
-            },
+            onDownload = viewModel::onDownload,
             modifier = Modifier.systemBarsPadding(),
         )
-    }
-
-    private fun loadModel(onStatus: (ModelStatus) -> Unit) {
-        onStatus(ModelStatus.Loading)
-        lifecycleScope.launch {
-            try {
-                val path = downloader?.getModelPath() ?: return@launch
-                val currentState = translator.state.value
-                if (currentState is InferenceEngine.State.ModelReady ||
-                    currentState is InferenceEngine.State.Generating
-                ) {
-                    translator.cancel()
-                }
-                translator.loadModel(path)
-                withContext(Dispatchers.Main) { onStatus(ModelStatus.Ready) }
-            } catch (e: Exception) {
-                onStatus(ModelStatus.Error(e.message ?: getString(R.string.model_load_failed)))
-            }
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        translator.destroy()
     }
 }

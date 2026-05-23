@@ -84,11 +84,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.devil.hytranslator.R
-import org.devil.hytranslator.data.Language
 import org.devil.hytranslator.data.Languages
-import org.devil.hytranslator.data.ModelOption
 import org.devil.hytranslator.data.ModelOptions
-import org.devil.hytranslator.service.DownloadProgress
+import org.devil.hytranslator.domain.model.DownloadProgress
+import org.devil.hytranslator.domain.model.Language
+import org.devil.hytranslator.domain.model.ModelOption
+import org.devil.hytranslator.domain.model.ModelStatus
 import org.devil.hytranslator.service.OcrEngine
 import org.devil.hytranslator.theme.InputTextStyle
 import org.devil.hytranslator.theme.OutputTextStyle

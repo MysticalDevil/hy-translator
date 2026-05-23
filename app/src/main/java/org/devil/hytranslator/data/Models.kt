@@ -3,16 +3,7 @@ package org.devil.hytranslator.data
 import android.app.ActivityManager
 import android.content.Context
 import org.devil.hytranslator.R
-
-data class ModelOption(
-    val key: String,
-    val nameResId: Int,
-    val descResId: Int,
-    val filename: String,
-    val sizeGb: Float,
-    val memoryRequirementGb: Float,
-) {
-}
+import org.devil.hytranslator.domain.model.ModelOption
 
 object ModelOptions {
     val all = listOf(

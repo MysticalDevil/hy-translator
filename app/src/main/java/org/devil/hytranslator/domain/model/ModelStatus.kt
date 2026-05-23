@@ -1,4 +1,4 @@
-package org.devil.hytranslator.ui
+package org.devil.hytranslator.domain.model
 
 sealed class ModelStatus {
     data object NotDownloaded : ModelStatus()

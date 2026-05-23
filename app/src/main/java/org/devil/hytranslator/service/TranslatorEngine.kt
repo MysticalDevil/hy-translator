@@ -4,7 +4,7 @@ import android.content.Context
 import com.arm.aichat.AiChat
 import com.arm.aichat.InferenceEngine
 import kotlinx.coroutines.flow.Flow
-import org.devil.hytranslator.data.Language
+import org.devil.hytranslator.domain.model.Language
 
 class TranslatorEngine(context: Context) {
 
