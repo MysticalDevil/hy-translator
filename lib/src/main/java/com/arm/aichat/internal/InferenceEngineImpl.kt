@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -188,9 +187,9 @@ internal class InferenceEngineImpl private constructor(
      *
      * TODO-han.yin: return error code if system prompt not correct processed?
      */
-    override suspend fun setSystemPrompt(prompt: String) =
+    override suspend fun setSystemPrompt(systemPrompt: String) =
         withContext(llamaDispatcher) {
-            require(prompt.isNotBlank()) { "Cannot process empty system prompt!" }
+            require(systemPrompt.isNotBlank()) { "Cannot process empty system prompt!" }
             check(_readyForSystemPrompt) { "System prompt must be set ** RIGHT AFTER ** model loaded!" }
             check(_state.value is InferenceEngine.State.ModelReady) {
                 "Cannot process system prompt in ${_state.value.javaClass.simpleName}!"
@@ -199,7 +198,7 @@ internal class InferenceEngineImpl private constructor(
             Log.i(TAG, "Sending system prompt...")
             _readyForSystemPrompt = false
             _state.value = InferenceEngine.State.ProcessingSystemPrompt
-            processSystemPrompt(prompt).let { result ->
+            processSystemPrompt(systemPrompt).let { result ->
                 if (result != 0) {
                     RuntimeException("Failed to process system prompt: $result").also {
                         _state.value = InferenceEngine.State.Error(it)
@@ -278,9 +277,9 @@ internal class InferenceEngineImpl private constructor(
     /**
      * Unloads the model and frees resources, or reset error states
      */
-    override fun cleanUp() {
+    override suspend fun cleanUp() {
         _cancelGeneration = true
-        runBlocking(llamaDispatcher) {
+        withContext(llamaDispatcher) {
             when (val state = _state.value) {
                 is InferenceEngine.State.ModelReady -> {
                     Log.i(TAG, "Unloading model and free resources...")
@@ -309,9 +308,9 @@ internal class InferenceEngineImpl private constructor(
     /**
      * Cancel all ongoing coroutines and free GGML backends
      */
-    override fun destroy() {
+    override suspend fun destroy() {
         _cancelGeneration = true
-        runBlocking(llamaDispatcher) {
+        withContext(llamaDispatcher) {
             _readyForSystemPrompt = false
             when(_state.value) {
                 is InferenceEngine.State.Uninitialized -> {}

@@ -17,3 +17,4 @@ gradle/gradle-daemon-jvm.properties
 .cxx
 local.properties
 REVIEW.md
+lib/src/main/prebuilt/
