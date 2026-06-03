@@ -1,17 +1,29 @@
 package org.devil.hytranslator
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import org.devil.hytranslator.data.repository.ModelRepositoryImpl
+import org.devil.hytranslator.data.repository.TranslatorRepositoryImpl
+import org.devil.hytranslator.service.ModelDownloadController
+import org.devil.hytranslator.service.ModelDownloadNotifier
 import org.devil.hytranslator.theme.MyApplicationTheme
 import org.devil.hytranslator.ui.ModelPickerDialog
 import org.devil.hytranslator.ui.TranslatorScreen
@@ -37,7 +49,22 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun TranslatorApp() {
-        val viewModel: TranslatorViewModel = viewModel()
+        val context = LocalContext.current
+        val viewModel: TranslatorViewModel = viewModel(
+            factory = object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    val appContext = context.applicationContext
+                    return TranslatorViewModel(
+                        translatorRepository = TranslatorRepositoryImpl(appContext),
+                        modelRepository = ModelRepositoryImpl(appContext),
+                        modelDownloadController = ModelDownloadController(appContext),
+                        modelDownloadNotifier = ModelDownloadNotifier(appContext),
+                        modelLoadFailedMessage = appContext.getString(R.string.model_load_failed),
+                    ) as T
+                }
+            },
+        )
         var showModelPicker by remember { mutableStateOf(false) }
         var lastTranslateTime by remember { mutableLongStateOf(0L) }
 
@@ -49,6 +76,29 @@ class MainActivity : ComponentActivity() {
         val modelStatus by viewModel.modelStatus.collectAsStateWithLifecycle()
         val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
         val selectedModel by viewModel.selectedModel.collectAsStateWithLifecycle()
+
+        LaunchedEffect(viewModel) {
+            viewModel.initialize()
+        }
+
+        val notificationPermissionLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission(),
+        ) {
+            viewModel.onDownload()
+        }
+
+        val startDownload: () -> Unit = {
+            if (
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                viewModel.onDownload()
+            }
+        }
 
         if (showModelPicker) {
             ModelPickerDialog(
@@ -83,7 +133,7 @@ class MainActivity : ComponentActivity() {
             downloadProgress = downloadProgress,
             selectedModel = selectedModel,
             onSwitchModel = { showModelPicker = true },
-            onDownload = viewModel::onDownload,
+            onDownload = startDownload,
             modifier = Modifier.systemBarsPadding(),
         )
     }

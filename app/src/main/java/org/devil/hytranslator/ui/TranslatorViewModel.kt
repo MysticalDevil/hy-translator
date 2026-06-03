@@ -1,18 +1,17 @@
 package org.devil.hytranslator.ui
 
-import android.app.Application
-import androidx.core.content.edit
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.devil.hytranslator.data.ModelOptions
-import org.devil.hytranslator.data.repository.ModelRepositoryImpl
-import org.devil.hytranslator.data.repository.TranslatorRepositoryImpl
 import org.devil.hytranslator.domain.model.DownloadProgress
 import org.devil.hytranslator.domain.model.Language
 import org.devil.hytranslator.domain.model.ModelOption
@@ -20,10 +19,19 @@ import org.devil.hytranslator.domain.model.ModelStatus
 import org.devil.hytranslator.domain.repository.LanguageRepository
 import org.devil.hytranslator.domain.repository.ModelRepository
 import org.devil.hytranslator.domain.repository.TranslatorRepository
+import org.devil.hytranslator.service.ModelDownloadController
+import org.devil.hytranslator.service.ModelDownloadNotifier
+import org.devil.hytranslator.service.ModelDownloadService
 
-class TranslatorViewModel(application: Application) : AndroidViewModel(application) {
+class TranslatorViewModel(
+    private val translatorRepository: TranslatorRepository,
+    private val modelRepository: ModelRepository,
+    private val modelDownloadController: ModelDownloadController,
+    private val modelDownloadNotifier: ModelDownloadNotifier,
+    private val modelLoadFailedMessage: String,
+    private val cleanupScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+) : ViewModel() {
 
-    private val translatorRepository: TranslatorRepository = TranslatorRepositoryImpl(application)
     private val languageRepository: LanguageRepository = object : LanguageRepository {
         override fun allLanguages(): List<Language> =
             org.devil.hytranslator.data.Languages.all
@@ -58,35 +66,26 @@ class TranslatorViewModel(application: Application) : AndroidViewModel(applicati
     private val _downloadProgress = MutableStateFlow<DownloadProgress?>(null)
     val downloadProgress: StateFlow<DownloadProgress?> = _downloadProgress.asStateFlow()
 
-    private val prefs = application.getSharedPreferences("model_prefs", 0)
-    private val modelRepository: ModelRepositoryImpl
-    private var _selectedModel: ModelOption
-
-    init {
-        val savedKey = prefs.getString("model_key", null)
-        _selectedModel = if (savedKey != null) {
-            ModelOptions.getByKey(savedKey)
-        } else {
-            ModelOptions.all.first()
-        }
-        modelRepository = ModelRepositoryImpl(application, _selectedModel.filename)
-
-        if (savedKey == null) {
-            _selectedModel = modelRepository.getRecommended()
-            modelRepository.setModelFilename(_selectedModel.filename)
-        }
-        prefs.edit { putString("model_key", _selectedModel.key) }
-
-        if (modelRepository.isModelDownloaded()) {
-            loadModel()
-        }
-    }
+    private var _selectedModel: ModelOption = modelRepository.getSelectedModel()
 
     private val _selectedModelFlow = MutableStateFlow(_selectedModel)
     val selectedModel: StateFlow<ModelOption> = _selectedModelFlow.asStateFlow()
 
     private var generationJob: Job? = null
     private var downloadJob: Job? = null
+    private var loadJob: Job? = null
+    private var modelOperationId = 0L
+    private var initialized = false
+    private var handledCompletedDownloadPath: String? = null
+
+    fun initialize() {
+        if (initialized) return
+        initialized = true
+        observeDownloadService()
+        if (modelRepository.isModelDownloaded()) {
+            loadModel()
+        }
+    }
 
     fun onInputTextChange(text: String) {
         _inputText.value = text
@@ -116,16 +115,28 @@ class TranslatorViewModel(application: Application) : AndroidViewModel(applicati
 
         _isTranslating.value = true
         _outputText.value = ""
+        val text = _inputText.value
+        val sourceLang = _sourceLang.value
+        val targetLang = _targetLang.value
         generationJob = viewModelScope.launch {
-            translatorRepository.translate(
-                text = _inputText.value,
-                sourceLang = _sourceLang.value,
-                targetLang = _targetLang.value,
-            ).collect { token ->
-                _outputText.update { it + token }
+            try {
+                translatorRepository.translate(
+                    text = text,
+                    sourceLang = sourceLang,
+                    targetLang = targetLang,
+                ).collect { token ->
+                    _outputText.update { it + token }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _modelStatus.value = ModelStatus.Error(
+                    e.message ?: modelLoadFailedMessage,
+                )
+            } finally {
+                _isTranslating.value = false
+                generationJob = null
             }
-            _isTranslating.value = false
-            generationJob = null
         }
     }
 
@@ -138,60 +149,96 @@ class TranslatorViewModel(application: Application) : AndroidViewModel(applicati
     fun onSelectModel(model: ModelOption) {
         if (model.key == _selectedModel.key) return
 
-        generationJob?.cancel()
-        generationJob = null
-        downloadJob?.cancel()
-        downloadJob = null
+        val oldGenerationJob = generationJob
+        oldGenerationJob?.cancel()
+        modelDownloadController.cancel()
+        loadJob?.cancel()
+        loadJob = null
         _isTranslating.value = false
 
         _selectedModel = model
         _selectedModelFlow.value = model
-        prefs.edit { putString("model_key", model.key) }
-        modelRepository.setModelFilename(model.filename)
+        modelRepository.selectModel(model)
+        val operationId = ++modelOperationId
 
         if (modelRepository.isModelDownloaded()) {
-            loadModel()
+            loadModel(model, operationId, oldGenerationJob)
         } else {
-            _modelStatus.value = ModelStatus.NotDownloaded
-            _downloadProgress.value = null
+            unloadCurrentModel(model, operationId, oldGenerationJob)
         }
     }
 
     fun onDownload() {
-        if (downloadJob?.isActive == true) return
-
         _modelStatus.value = ModelStatus.Downloading
         _downloadProgress.value = null
-        downloadJob = viewModelScope.launch {
+        observeDownloadService()
+        modelDownloadController.start(_selectedModel)
+    }
+
+    fun onClearAllModels() {
+        val oldGenerationJob = generationJob
+        modelDownloadController.cancel()
+        oldGenerationJob?.cancel()
+        loadJob?.cancel()
+        loadJob = null
+        ++modelOperationId
+        _isTranslating.value = false
+        _modelStatus.value = ModelStatus.NotDownloaded
+        _downloadProgress.value = null
+        loadJob = viewModelScope.launch {
             try {
-                modelRepository.download().collect { progress ->
-                    _downloadProgress.value = progress
-                    when (progress) {
-                        is DownloadProgress.Completed -> loadModel()
-                        is DownloadProgress.Error -> {
-                            _modelStatus.value = ModelStatus.Error(progress.message)
-                        }
-                        else -> {}
-                    }
+                oldGenerationJob?.join()
+                if (translatorRepository.isModelReady()) {
+                    translatorRepository.unloadModel()
                 }
+                modelRepository.clearAllModels()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _modelStatus.value = ModelStatus.Error(
-                    e.message ?: getApplication<Application>()
-                        .getString(org.devil.hytranslator.R.string.model_load_failed),
+                    e.message ?: modelLoadFailedMessage,
                 )
+            } finally {
+                loadJob = null
             }
         }
     }
 
-    fun onClearAllModels() {
-        downloadJob?.cancel()
-        downloadJob = null
-        generationJob?.cancel()
-        generationJob = null
-        _isTranslating.value = false
-        modelRepository.clearAllModels()
-        _modelStatus.value = ModelStatus.NotDownloaded
-        _downloadProgress.value = null
+    private fun observeDownloadService() {
+        if (downloadJob?.isActive == true) return
+
+        downloadJob = viewModelScope.launch {
+            modelDownloadController.state.collect { state ->
+                when (state) {
+                    is ModelDownloadService.State.Idle -> {}
+                    is ModelDownloadService.State.Downloading -> {
+                        if (state.model.key == _selectedModel.key) {
+                            _modelStatus.value = ModelStatus.Downloading
+                            _downloadProgress.value = state.progress
+                        }
+                    }
+                    is ModelDownloadService.State.Completed -> {
+                        if (
+                            state.model.key == _selectedModel.key &&
+                            handledCompletedDownloadPath != state.path
+                        ) {
+                            handledCompletedDownloadPath = state.path
+                            val operationId = ++modelOperationId
+                            loadModel(
+                                model = state.model,
+                                operationId = operationId,
+                                showDownloadCompleteNotification = true,
+                            )
+                        }
+                    }
+                    is ModelDownloadService.State.Error -> {
+                        if (state.model.key == _selectedModel.key) {
+                            _modelStatus.value = ModelStatus.Error(state.message)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun onSwapLanguages() {
@@ -207,23 +254,79 @@ class TranslatorViewModel(application: Application) : AndroidViewModel(applicati
 
     override fun onCleared() {
         super.onCleared()
-        translatorRepository.destroy()
+        cleanupScope.launch {
+            translatorRepository.destroy()
+        }
     }
 
-    private fun loadModel() {
+    private fun loadModel(
+        model: ModelOption = _selectedModel,
+        operationId: Long = ++modelOperationId,
+        previousGenerationJob: Job? = null,
+        showDownloadCompleteNotification: Boolean = false,
+    ) {
+        loadJob?.cancel()
         _modelStatus.value = ModelStatus.Loading
-        viewModelScope.launch {
+        val modelPath = modelRepository.getModelPath()
+        loadJob = viewModelScope.launch {
             try {
+                previousGenerationJob?.join()
                 if (translatorRepository.isModelReady()) {
                     translatorRepository.unloadModel()
                 }
-                translatorRepository.loadModel(modelRepository.getModelPath())
-                _modelStatus.value = ModelStatus.Ready
+                translatorRepository.loadModel(modelPath)
+                if (operationId == modelOperationId && model.key == _selectedModel.key) {
+                    _modelStatus.value = ModelStatus.Ready
+                    _downloadProgress.value = null
+                    if (showDownloadCompleteNotification) {
+                        modelDownloadNotifier.showComplete()
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _modelStatus.value = ModelStatus.Error(
-                    e.message ?: getApplication<Application>()
-                        .getString(org.devil.hytranslator.R.string.model_load_failed),
-                )
+                if (operationId == modelOperationId && model.key == _selectedModel.key) {
+                    modelDownloadNotifier.showError(e.message ?: modelLoadFailedMessage)
+                    _modelStatus.value = ModelStatus.Error(
+                        e.message ?: modelLoadFailedMessage,
+                    )
+                }
+            } finally {
+                if (operationId == modelOperationId) {
+                    loadJob = null
+                }
+            }
+        }
+    }
+
+    private fun unloadCurrentModel(
+        model: ModelOption,
+        operationId: Long,
+        previousGenerationJob: Job?,
+    ) {
+        _modelStatus.value = ModelStatus.NotDownloaded
+        _downloadProgress.value = null
+        loadJob = viewModelScope.launch {
+            try {
+                previousGenerationJob?.join()
+                if (translatorRepository.isModelReady()) {
+                    translatorRepository.unloadModel()
+                }
+                if (operationId == modelOperationId && model.key == _selectedModel.key) {
+                    _modelStatus.value = ModelStatus.NotDownloaded
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (operationId == modelOperationId && model.key == _selectedModel.key) {
+                    _modelStatus.value = ModelStatus.Error(
+                        e.message ?: modelLoadFailedMessage,
+                    )
+                }
+            } finally {
+                if (operationId == modelOperationId) {
+                    loadJob = null
+                }
             }
         }
     }
