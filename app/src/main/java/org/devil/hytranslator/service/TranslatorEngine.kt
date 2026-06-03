@@ -31,11 +31,11 @@ class TranslatorEngine(context: Context) {
         return engine.sendUserPrompt(prompt, predictLength = maxTokens)
     }
 
-    fun unloadModel() {
+    suspend fun unloadModel() {
         engine.cleanUp()
     }
 
-    fun destroy() {
+    suspend fun destroy() {
         engine.destroy()
     }
 

@@ -13,5 +13,9 @@ interface ModelRepository {
 
     fun getRecommended(): ModelOption
 
+    fun getSelectedModel(): ModelOption
+
+    fun selectModel(model: ModelOption)
+
     fun clearAllModels()
 }
