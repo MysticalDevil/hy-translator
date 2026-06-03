@@ -2,6 +2,7 @@ package org.devil.hytranslator.service
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -10,6 +11,7 @@ import okhttp3.Request
 import org.devil.hytranslator.domain.model.DownloadProgress
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.coroutines.coroutineContext
 import java.util.concurrent.TimeUnit
 
 class ModelDownloader(
@@ -36,51 +38,66 @@ class ModelDownloader(
         val url = "${HF_BASE_URL}${filename}?download=true"
         val tmpFile = File(modelDir, "$filename.tmp")
 
-        val existingSize = tmpFile.takeIf { it.exists() }?.length() ?: 0L
+        var existingSize = tmpFile.takeIf { it.exists() }?.length() ?: 0L
 
         val requestBuilder = Request.Builder().url(url)
         if (existingSize > 0) {
             requestBuilder.header("Range", "bytes=$existingSize-")
         }
 
-        val response = client.newCall(requestBuilder.build()).execute()
+        client.newCall(requestBuilder.build()).execute().use { response ->
+            if (existingSize > 0 && response.code != 206) {
+                if (!tmpFile.delete()) {
+                    emit(DownloadProgress.Error("Cannot restart partial download"))
+                    return@flow
+                }
+                existingSize = 0L
+            }
 
-        if (!response.isSuccessful && response.code != 206) {
-            emit(DownloadProgress.Error("HTTP ${response.code}"))
-            return@flow
+            if (!response.isSuccessful) {
+                emit(DownloadProgress.Error("HTTP ${response.code}"))
+                return@flow
+            }
+
+            val responseBody = response.body
+            val totalSize = if (existingSize > 0) {
+                val contentRange = response.header("Content-Range")
+                if (contentRange != null) contentRange.substringAfter("/").toLongOrNull() ?: 0L
+                else responseBody.contentLength().let { existingSize + it }
+            } else {
+                responseBody.contentLength()
+            }
+
+            val input = responseBody.byteStream()
+
+            FileOutputStream(tmpFile, existingSize > 0).use { output ->
+                input.use { source ->
+                    val buffer = ByteArray(8192)
+                    var bytesRead: Int
+                    var downloaded = existingSize
+
+                    emit(DownloadProgress.Started(totalSize, downloaded))
+
+                    while (source.read(buffer).also { bytesRead = it } != -1) {
+                        coroutineContext.ensureActive()
+                        output.write(buffer, 0, bytesRead)
+                        downloaded += bytesRead
+                        emit(DownloadProgress.Downloading(downloaded, totalSize))
+                    }
+                }
+            }
+
+            if (totalSize > 0 && tmpFile.length() != totalSize) {
+                emit(DownloadProgress.Error("Incomplete download"))
+                return@flow
+            }
+
+            if (!tmpFile.renameTo(modelFile)) {
+                emit(DownloadProgress.Error("Cannot finalize download"))
+                return@flow
+            }
+            emit(DownloadProgress.Completed(modelFile.absolutePath))
         }
-
-        val totalSize = if (existingSize > 0) {
-            val contentRange = response.header("Content-Range")
-            if (contentRange != null) contentRange.substringAfter("/").toLongOrNull() ?: 0L
-            else response.body?.contentLength()?.let { existingSize + it } ?: 0L
-        } else {
-            response.body?.contentLength() ?: 0L
-        }
-
-        val input = response.body?.byteStream() ?: run {
-            emit(DownloadProgress.Error("Cannot read response body"))
-            return@flow
-        }
-
-        val output = FileOutputStream(tmpFile, existingSize > 0)
-        val buffer = ByteArray(8192)
-        var bytesRead: Int
-        var downloaded = existingSize
-
-        emit(DownloadProgress.Started(totalSize, downloaded))
-
-        while (input.read(buffer).also { bytesRead = it } != -1) {
-            output.write(buffer, 0, bytesRead)
-            downloaded += bytesRead
-            emit(DownloadProgress.Downloading(downloaded, totalSize))
-        }
-
-        output.close()
-        input.close()
-
-        tmpFile.renameTo(modelFile)
-        emit(DownloadProgress.Completed(modelFile.absolutePath))
     }.flowOn(Dispatchers.IO)
 
     companion object {
