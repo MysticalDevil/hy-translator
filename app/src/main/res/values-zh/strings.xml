@@ -17,6 +17,16 @@
     <string name="model_loading">加载模型中…</string>
     <string name="model_error">错误: %1$s</string>
     <string name="model_load_failed">模型加载失败</string>
+    <string name="model_download_notification_channel">模型下载</string>
+    <string name="model_download_notification_title">正在下载翻译模型</string>
+    <string name="model_download_notification_progress_title">模型下载中：%1$d%%</string>
+    <string name="model_download_notification_progress_text">%1$s • %2$.1f / %3$.1f MB</string>
+    <string name="model_download_notification_progress_status">%1$s/s • 剩余 %2$s</string>
+    <string name="model_download_notification_progress_calculating">正在计算速度…</string>
+    <string name="model_download_notification_complete">模型下载完成</string>
+    <string name="model_download_notification_error">模型下载失败: %1$s</string>
+    <string name="model_download_notification_loading">下载完成，正在加载模型…</string>
+    <string name="model_download_notification_cancel">取消</string>
     <string name="lang_auto_detect">自动检测</string>
 
     <!-- i18n: Accessibility content descriptions -->
