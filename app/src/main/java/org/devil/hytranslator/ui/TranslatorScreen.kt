@@ -72,6 +72,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -424,6 +425,7 @@ private fun InputArea(
 ) {
     val liveTranslateContentDescription = stringResource(R.string.cd_live_translate_toggle)
     val voiceInputContentDescription = stringResource(R.string.cd_voice_input_toggle)
+    val inputContentDescription = stringResource(R.string.cd_translation_input)
     val isVoiceInputListening = voiceInputState is VoiceInputState.Listening
     val asrReady = asrAssetState is AiAssetState.Ready
     val ocrReady = ocrAssetState is AiAssetState.Ready
@@ -443,7 +445,11 @@ private fun InputArea(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 20.dp, end = 68.dp, top = 20.dp, bottom = 56.dp)
-                    .defaultMinSize(minHeight = 160.dp),
+                    .defaultMinSize(minHeight = 160.dp)
+                    .testTag(TranslatorTestTags.TranslationInput)
+                    .semantics {
+                        contentDescription = inputContentDescription
+                    },
                 textStyle = InputTextStyle.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),

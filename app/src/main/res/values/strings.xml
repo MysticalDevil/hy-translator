@@ -34,6 +34,7 @@
     <string name="cd_target_lang_dropdown">Select target language</string>
     <string name="cd_swap_languages">Swap source and target languages</string>
     <string name="cd_clear_input">Clear input text</string>
+    <string name="cd_translation_input">Translation input</string>
     <string name="cd_copy_result">Copy translation result to clipboard</string>
     <string name="cd_live_translate_toggle">Toggle live translation</string>
     <string name="cd_voice_input_toggle">Toggle voice input</string>

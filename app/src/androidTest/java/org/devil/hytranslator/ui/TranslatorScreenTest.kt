@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.devil.hytranslator.R
 import org.devil.hytranslator.domain.model.AiAssetState
 import org.devil.hytranslator.domain.model.Language
 import org.devil.hytranslator.domain.model.ModelOption
@@ -41,12 +42,29 @@ class TranslatorScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Model download required").assertIsDisplayed()
-        composeRule.onNodeWithText("Voice input model required").assertExists()
-        composeRule.onNodeWithText("OCR model required").assertExists()
-        composeRule.onNodeWithContentDescription("Toggle live translation").assertExists()
-        composeRule.onNodeWithContentDescription("Toggle voice input").assertExists()
-        composeRule.onNodeWithContentDescription("Open camera to capture text").assertExists()
+        composeRule.onNodeWithText(string(R.string.model_download_title))
+            .assertExists()
+        composeRule.onNodeWithText(
+            string(
+                R.string.asset_not_downloaded,
+                string(R.string.asset_asr_zipformer),
+            ),
+        ).assertExists()
+        composeRule.onNodeWithText(
+            string(
+                R.string.asset_not_downloaded,
+                string(R.string.asset_ocr_ppocrv5),
+            ),
+        ).assertExists()
+        composeRule.onNodeWithContentDescription(
+            string(R.string.cd_live_translate_toggle),
+        ).assertExists()
+        composeRule.onNodeWithContentDescription(
+            string(R.string.cd_voice_input_toggle),
+        ).assertExists()
+        composeRule.onNodeWithContentDescription(
+            string(R.string.cd_ocr_button),
+        ).assertExists()
     }
 
     @Test
@@ -69,9 +87,10 @@ class TranslatorScreenTest {
         }
 
         composeRule.onNodeWithText("bonjour").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Copy translation result to clipboard")
+        composeRule.onNodeWithContentDescription(string(R.string.cd_copy_result))
             .assertExists()
-        composeRule.onNodeWithText("Current: Hy-MT2-1.8B Q4_K_M").assertExists()
+        composeRule.onNodeWithText(string(R.string.model_current, q4Model.name))
+            .assertExists()
     }
 
     @Test
@@ -89,12 +108,16 @@ class TranslatorScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Select Model").assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.model_select_title))
+            .assertIsDisplayed()
         composeRule.onNodeWithText("Hy-MT2-1.8B Q4_K_M").assertExists()
         composeRule.onNodeWithText("Hy-MT2-1.8B Q6_K").assertExists()
-        composeRule.onNodeWithText("Recommended").assertExists()
-        composeRule.onNodeWithText("Clear All Models").assertExists()
+        composeRule.onNodeWithText(string(R.string.model_recommended)).assertExists()
+        composeRule.onNodeWithText(string(R.string.model_clear_all)).assertExists()
     }
+
+    private fun string(resId: Int, vararg formatArgs: Any): String =
+        composeRule.activity.getString(resId, *formatArgs)
 
     @Composable
     private fun TestTranslatorScreen(

@@ -39,8 +39,8 @@
   备份排除规则保留用于历史安装。
 - `ModelDownloadService` 通过 companion object 静态 `StateFlow` 与 ViewModel 通信，不利于进程恢复、测试和持久化。
 - `app` 基本没有单元测试、Compose UI 测试或 instrumented 测试；`:lib` 当前测试仍是占位示例。
-- Manifest 中 `MainActivity` 使用 `configChanges` 手动绕过重建，
-  应改为正常配置变化 + saved state 验证。
+- Manifest 已移除 `MainActivity` 的 `configChanges`，并新增配置变化重建测试；
+  后续继续覆盖更多 UI 状态和进程死亡恢复。
 
 ## 目标架构
 
@@ -165,7 +165,8 @@ DI 默认决策：
   `platform.ocr.OcrProcessor`；OCR flow 状态转换已移到 `OcrWorkflowController`。
   后续替换 PaddleOCR 时优先替换该 adapter。
 - 为关键 Composable 增加 preview parameter provider 和稳定假数据。
-- 删除不必要的 `configChanges`，通过 ViewModel、SavedStateHandle 和测试证明配置变化可恢复。
+- 已删除不必要的 `configChanges`，通过 `MainActivityConfigurationTest` 验证 Activity
+  重建后输入状态保留；后续再引入 SavedStateHandle 覆盖进程死亡恢复。
 
 ### Phase 5：后台下载和通知标准化
 
@@ -223,6 +224,7 @@ DI 默认决策：
   - 已覆盖 source picker、camera、hide 的状态转换。
   - 后续补相册 URI、bitmap 识别成功和 typed error 路径。
 - Instrumented 测试：
+  - 已新增 `MainActivityConfigurationTest`，覆盖 Activity 重建后输入状态保留。
   - 通知权限路径。
   - 前台服务/UIDT fallback。
   - CameraX/OCR smoke path。
