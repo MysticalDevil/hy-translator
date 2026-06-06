@@ -23,11 +23,22 @@ class AiAssetDownloadController(
         initialValue = AiAssetDownloadState.Idle,
     )
 
+    override fun state(asset: AiAsset): StateFlow<AiAssetDownloadState> =
+        stateStore.state(asset).stateIn(
+            scope = scope,
+            started = SharingStarted.Eagerly,
+            initialValue = AiAssetDownloadState.Idle,
+        )
+
     override fun start(asset: AiAsset) {
         AiAssetDownloadService.start(context, asset)
     }
 
     override fun cancel() {
         AiAssetDownloadService.cancel(context)
+    }
+
+    override fun cancel(asset: AiAsset) {
+        AiAssetDownloadService.cancel(context, asset)
     }
 }

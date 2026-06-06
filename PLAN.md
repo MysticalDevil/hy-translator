@@ -80,9 +80,9 @@
   但模型下载、AI 资源下载、UI 状态和通知动作仍未完全统一；
   通知取消/完成/失败与 UI 的双向绑定和可恢复状态仍是当前最高优先级缺口。
 - OCR 资源层已有 `AiAsset.OcrPpOcrV5Mobile` 和 `OcrTextRepository` adapter 边界，
-  但实际 OCR runtime 仍是 ML Kit，PaddleOCR PP-OCRv5 mobile 尚未接入。
-- ASR 资源层和 `VoiceInputRepository` adapter 边界已存在，但 sherpa-onnx streaming
-  Zipformer runtime、`AudioRecord` 和 partial/final result 流尚未接入。
+  生产入口已切到 Paddle Lite adapter，当前已有 rec 单行识别链路，det 多框 pipeline 待补齐。
+- ASR 资源层和 `VoiceInputRepository` adapter 边界已存在，sherpa-onnx streaming
+  Zipformer runtime、`AudioRecord` 和 partial/final result 回写已接入，仍待真机端到端 smoke。
 - `app` 已有 ViewModel 单元测试、OCR workflow 单元测试、Compose UI 测试和
   Activity 重建 instrumented 测试；`:lib` 当前测试仍偏 smoke/基础覆盖，后续需继续增强。
 - Manifest 已移除 `MainActivity` 的 `configChanges`，并新增配置变化重建测试；
@@ -102,11 +102,13 @@
   进度节流和错误展示，后续应收敛为统一 download runtime，再由 model/AI asset
   adapter 提供 job metadata。
 - AI 资源下载通知已拆成 ASR/OCR 独立 notification id，取消 action 也携带 asset id；
-  但 service 当前仍是单 job，尚未支持真正的多资源并发下载。
+  AI 资源下载状态已按 asset 独立持久化，ViewModel 也按 ASR/OCR 分别观察状态。
+  但 service 当前仍是单活跃 job，尚未支持真正的多资源并发下载。
 - 通知动作已覆盖取消、打开 App 和失败后重试；后续还缺跳转到对应资源/模型状态的显式 deep link
   和通知动作 instrumentation 测试。
 - UI 取消、通知取消、模型切换、清理资源和 service 自身失败之间还没有完整双向绑定；
-  `TranslatorViewModel` 只是收集 service 内存流并映射 UI 状态。
+  `TranslatorViewModel` 已收集持久化下载状态并按 AI asset 分别映射 UI 状态，但模型下载完成后的
+  加载/通知语义仍依赖 App 进程存活。
 - 模型下载完成后由 service 发出 Completed，ViewModel 再加载模型并补发完成通知；
   这个链路仍依赖 App 进程存活。进程死亡或 Activity 不存在时不会恢复“下载完成后加载/提示”的语义。
 - `onSelectModel()` 和 `onClearAllModels()` 只取消模型下载，尚未定义 AI 资源下载、

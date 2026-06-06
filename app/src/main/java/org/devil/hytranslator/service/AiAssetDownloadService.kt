@@ -69,7 +69,12 @@ class AiAssetDownloadService : Service() {
     }
 
     private fun startDownload(asset: AiAsset) {
-        currentAsset?.takeIf { it != asset }?.let { notifier.cancel(it) }
+        currentAsset?.takeIf { it != asset }?.let { previousAsset ->
+            notifier.cancel(previousAsset)
+            runBlocking(Dispatchers.IO) {
+                stateStore.setIdle(previousAsset)
+            }
+        }
         downloadJob?.cancel()
         currentAsset = asset
         terminalStateReached = false
@@ -168,7 +173,11 @@ class AiAssetDownloadService : Service() {
         downloadJob?.cancel()
         downloadJob = null
         runBlocking(Dispatchers.IO) {
-            stateStore.setIdle()
+            if (activeAsset != null) {
+                stateStore.setIdle(activeAsset)
+            } else {
+                stateStore.setIdle()
+            }
         }
         activeAsset?.let { notifier.cancel(it) }
         currentAsset = null
@@ -199,6 +208,13 @@ class AiAssetDownloadService : Service() {
         fun cancel(context: Context) {
             val intent = Intent(context, AiAssetDownloadService::class.java)
                 .setAction(ACTION_CANCEL)
+            context.startService(intent)
+        }
+
+        fun cancel(context: Context, asset: AiAsset) {
+            val intent = Intent(context, AiAssetDownloadService::class.java)
+                .setAction(ACTION_CANCEL)
+                .putExtra(EXTRA_ASSET, asset.name)
             context.startService(intent)
         }
     }

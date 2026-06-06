@@ -378,26 +378,34 @@ class TranslatorViewModel(
         if (aiAssetServiceJob?.isActive == true) return
 
         aiAssetServiceJob = viewModelScope.launch {
-            aiAssetDownloadController.state.collect { state ->
-                when (state) {
-                    is AiAssetDownloadState.Idle -> {}
-                    is AiAssetDownloadState.Downloading -> {
-                        setAiAssetState(
-                            asset = state.asset,
-                            assetState = AiAssetState.Downloading(state.progress),
-                        )
-                    }
-                    is AiAssetDownloadState.Completed -> {
-                        aiAssetRepository.refresh(state.asset)
-                        setAiAssetState(state.asset, AiAssetState.Ready)
-                    }
-                    is AiAssetDownloadState.Error -> {
-                        setAiAssetState(
-                            asset = state.asset,
-                            assetState = AiAssetState.Error(state.message),
-                        )
+            AiAsset.values().forEach { asset ->
+                launch {
+                    aiAssetDownloadController.state(asset).collect { state ->
+                        applyAiAssetDownloadState(state)
                     }
                 }
+            }
+        }
+    }
+
+    private fun applyAiAssetDownloadState(state: AiAssetDownloadState) {
+        when (state) {
+            is AiAssetDownloadState.Idle -> {}
+            is AiAssetDownloadState.Downloading -> {
+                setAiAssetState(
+                    asset = state.asset,
+                    assetState = AiAssetState.Downloading(state.progress),
+                )
+            }
+            is AiAssetDownloadState.Completed -> {
+                aiAssetRepository.refresh(state.asset)
+                setAiAssetState(state.asset, AiAssetState.Ready)
+            }
+            is AiAssetDownloadState.Error -> {
+                setAiAssetState(
+                    asset = state.asset,
+                    assetState = AiAssetState.Error(state.message),
+                )
             }
         }
     }

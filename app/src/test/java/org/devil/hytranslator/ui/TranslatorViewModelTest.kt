@@ -302,7 +302,8 @@ class TranslatorViewModelTest {
         assertEquals(AiAsset.AsrStreamingZipformer, aiAssetDownloadActions.startedAsset)
 
         val progress = DownloadProgress.Downloading(downloaded = 10L, total = 100L)
-        aiAssetDownloadActions.mutableState.value = AiAssetDownloadState.Downloading(
+        aiAssetDownloadActions.mutableState(AiAsset.AsrStreamingZipformer).value =
+            AiAssetDownloadState.Downloading(
             asset = AiAsset.AsrStreamingZipformer,
             progress = progress,
         )
@@ -310,7 +311,8 @@ class TranslatorViewModelTest {
 
         assertEquals(AiAssetState.Downloading(progress), viewModel.uiState.value.asrAssetState)
 
-        aiAssetDownloadActions.mutableState.value = AiAssetDownloadState.Completed(
+        aiAssetDownloadActions.mutableState(AiAsset.AsrStreamingZipformer).value =
+            AiAssetDownloadState.Completed(
             asset = AiAsset.AsrStreamingZipformer,
             path = "/ai-assets/asr",
         )
@@ -318,6 +320,26 @@ class TranslatorViewModelTest {
 
         assertEquals(AiAsset.AsrStreamingZipformer, aiAssetRepository.refreshedAsset)
         assertSame(AiAssetState.Ready, viewModel.uiState.value.asrAssetState)
+    }
+
+    @Test
+    fun downloadAiAsset_whenOcrStateChanges_doesNotOverwriteAsrState() = runTest {
+        val aiAssetDownloadActions = FakeAiAssetDownloadActions()
+        val viewModel = createViewModel(aiAssetDownloadActions = aiAssetDownloadActions)
+
+        viewModel.initialize()
+        advanceUntilIdle()
+
+        val ocrProgress = DownloadProgress.Downloading(downloaded = 25L, total = 100L)
+        aiAssetDownloadActions.mutableState(AiAsset.OcrPpOcrV5Mobile).value =
+            AiAssetDownloadState.Downloading(
+                asset = AiAsset.OcrPpOcrV5Mobile,
+                progress = ocrProgress,
+            )
+        advanceUntilIdle()
+
+        assertSame(AiAssetState.NotDownloaded, viewModel.uiState.value.asrAssetState)
+        assertEquals(AiAssetState.Downloading(ocrProgress), viewModel.uiState.value.ocrAssetState)
     }
 
     @Test
@@ -600,14 +622,28 @@ class TranslatorViewModelTest {
     }
 
     private class FakeAiAssetDownloadActions : AiAssetDownloadActions {
-        val mutableState = MutableStateFlow<AiAssetDownloadState>(
-            AiAssetDownloadState.Idle,
+        private val mutableStates = mutableMapOf(
+            AiAsset.AsrStreamingZipformer to MutableStateFlow<AiAssetDownloadState>(
+                AiAssetDownloadState.Idle,
+            ),
+            AiAsset.OcrPpOcrV5Mobile to MutableStateFlow<AiAssetDownloadState>(
+                AiAssetDownloadState.Idle,
+            ),
         )
-        override val state: StateFlow<AiAssetDownloadState> = mutableState
+        override val state: StateFlow<AiAssetDownloadState> =
+            MutableStateFlow(AiAssetDownloadState.Idle)
         var startedAsset: AiAsset? = null
             private set
         var cancelled = false
             private set
+        var cancelledAsset: AiAsset? = null
+            private set
+
+        fun mutableState(asset: AiAsset): MutableStateFlow<AiAssetDownloadState> =
+            mutableStates.getValue(asset)
+
+        override fun state(asset: AiAsset): StateFlow<AiAssetDownloadState> =
+            mutableStates.getValue(asset)
 
         override fun start(asset: AiAsset) {
             startedAsset = asset
@@ -615,6 +651,10 @@ class TranslatorViewModelTest {
 
         override fun cancel() {
             cancelled = true
+        }
+
+        override fun cancel(asset: AiAsset) {
+            cancelledAsset = asset
         }
     }
 

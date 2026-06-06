@@ -95,69 +95,81 @@ class AiAssetDownloadStateStore(
     private val dataStore = context.applicationContext.downloadStateDataStore
 
     val state: Flow<AiAssetDownloadState> = dataStore.data.map { preferences ->
-        preferences.toAiAssetDownloadState()
+        AiAsset.values()
+            .asSequence()
+            .map { asset -> preferences.toAiAssetDownloadState(asset) }
+            .firstOrNull { it !is AiAssetDownloadState.Idle }
+            ?: AiAssetDownloadState.Idle
+    }
+
+    fun state(asset: AiAsset): Flow<AiAssetDownloadState> = dataStore.data.map { preferences ->
+        preferences.toAiAssetDownloadState(asset)
     }
 
     suspend fun setDownloading(asset: AiAsset, progress: DownloadProgress?) {
         dataStore.edit { preferences ->
-            preferences[AI_ASSET_STATUS] = STATUS_DOWNLOADING
-            preferences[AI_ASSET_NAME] = asset.name
-            preferences.remove(AI_ASSET_PATH)
-            preferences.remove(AI_ASSET_ERROR)
-            preferences.writeProgress(AI_ASSET_PROGRESS_TYPE, AI_ASSET_DOWNLOADED, AI_ASSET_TOTAL, progress)
+            preferences[aiAssetStatusKey(asset)] = STATUS_DOWNLOADING
+            preferences.remove(aiAssetPathKey(asset))
+            preferences.remove(aiAssetErrorKey(asset))
+            preferences.writeProgress(
+                aiAssetProgressTypeKey(asset),
+                aiAssetDownloadedKey(asset),
+                aiAssetTotalKey(asset),
+                progress,
+            )
         }
     }
 
     suspend fun setCompleted(asset: AiAsset, path: String) {
         dataStore.edit { preferences ->
-            preferences[AI_ASSET_STATUS] = STATUS_COMPLETED
-            preferences[AI_ASSET_NAME] = asset.name
-            preferences[AI_ASSET_PATH] = path
-            preferences.remove(AI_ASSET_ERROR)
-            preferences.clearProgress(AI_ASSET_PROGRESS_TYPE, AI_ASSET_DOWNLOADED, AI_ASSET_TOTAL)
+            preferences[aiAssetStatusKey(asset)] = STATUS_COMPLETED
+            preferences[aiAssetPathKey(asset)] = path
+            preferences.remove(aiAssetErrorKey(asset))
+            preferences.clearProgress(
+                aiAssetProgressTypeKey(asset),
+                aiAssetDownloadedKey(asset),
+                aiAssetTotalKey(asset),
+            )
         }
     }
 
     suspend fun setError(asset: AiAsset, message: String) {
         dataStore.edit { preferences ->
-            preferences[AI_ASSET_STATUS] = STATUS_ERROR
-            preferences[AI_ASSET_NAME] = asset.name
-            preferences[AI_ASSET_ERROR] = message
-            preferences.remove(AI_ASSET_PATH)
-            preferences.clearProgress(AI_ASSET_PROGRESS_TYPE, AI_ASSET_DOWNLOADED, AI_ASSET_TOTAL)
+            preferences[aiAssetStatusKey(asset)] = STATUS_ERROR
+            preferences[aiAssetErrorKey(asset)] = message
+            preferences.remove(aiAssetPathKey(asset))
+            preferences.clearProgress(
+                aiAssetProgressTypeKey(asset),
+                aiAssetDownloadedKey(asset),
+                aiAssetTotalKey(asset),
+            )
         }
     }
 
     suspend fun setIdle() {
         dataStore.edit { preferences ->
-            preferences.remove(AI_ASSET_STATUS)
-            preferences.remove(AI_ASSET_NAME)
-            preferences.remove(AI_ASSET_PATH)
-            preferences.remove(AI_ASSET_ERROR)
-            preferences.clearProgress(AI_ASSET_PROGRESS_TYPE, AI_ASSET_DOWNLOADED, AI_ASSET_TOTAL)
+            AiAsset.values().forEach { asset ->
+                preferences.clearAsset(asset)
+            }
         }
     }
 
-    private fun Preferences.toAiAssetDownloadState(): AiAssetDownloadState {
-        return aiAssetDownloadStateFromRecord(
-            status = this[AI_ASSET_STATUS],
-            assetName = this[AI_ASSET_NAME],
-            path = this[AI_ASSET_PATH],
-            error = this[AI_ASSET_ERROR],
-            progressType = this[AI_ASSET_PROGRESS_TYPE],
-            downloaded = this[AI_ASSET_DOWNLOADED],
-            total = this[AI_ASSET_TOTAL],
-        )
+    suspend fun setIdle(asset: AiAsset) {
+        dataStore.edit { preferences ->
+            preferences.clearAsset(asset)
+        }
     }
 
-    private companion object {
-        val AI_ASSET_STATUS = stringPreferencesKey("ai_asset_status")
-        val AI_ASSET_NAME = stringPreferencesKey("ai_asset_name")
-        val AI_ASSET_PATH = stringPreferencesKey("ai_asset_path")
-        val AI_ASSET_ERROR = stringPreferencesKey("ai_asset_error")
-        val AI_ASSET_PROGRESS_TYPE = stringPreferencesKey("ai_asset_progress_type")
-        val AI_ASSET_DOWNLOADED = longPreferencesKey("ai_asset_downloaded")
-        val AI_ASSET_TOTAL = longPreferencesKey("ai_asset_total")
+    private fun Preferences.toAiAssetDownloadState(asset: AiAsset): AiAssetDownloadState {
+        return aiAssetDownloadStateFromRecord(
+            status = this[aiAssetStatusKey(asset)],
+            assetName = asset.name,
+            path = this[aiAssetPathKey(asset)],
+            error = this[aiAssetErrorKey(asset)],
+            progressType = this[aiAssetProgressTypeKey(asset)],
+            downloaded = this[aiAssetDownloadedKey(asset)],
+            total = this[aiAssetTotalKey(asset)],
+        )
     }
 }
 
@@ -278,6 +290,31 @@ private fun androidx.datastore.preferences.core.MutablePreferences.writeProgress
         -> clearProgress(typeKey, downloadedKey, totalKey)
     }
 }
+
+private fun androidx.datastore.preferences.core.MutablePreferences.clearAsset(asset: AiAsset) {
+    remove(aiAssetStatusKey(asset))
+    remove(aiAssetPathKey(asset))
+    remove(aiAssetErrorKey(asset))
+    clearProgress(aiAssetProgressTypeKey(asset), aiAssetDownloadedKey(asset), aiAssetTotalKey(asset))
+}
+
+private fun aiAssetStatusKey(asset: AiAsset) =
+    stringPreferencesKey("ai_asset_${asset.name}_status")
+
+private fun aiAssetPathKey(asset: AiAsset) =
+    stringPreferencesKey("ai_asset_${asset.name}_path")
+
+private fun aiAssetErrorKey(asset: AiAsset) =
+    stringPreferencesKey("ai_asset_${asset.name}_error")
+
+private fun aiAssetProgressTypeKey(asset: AiAsset) =
+    stringPreferencesKey("ai_asset_${asset.name}_progress_type")
+
+private fun aiAssetDownloadedKey(asset: AiAsset) =
+    longPreferencesKey("ai_asset_${asset.name}_downloaded")
+
+private fun aiAssetTotalKey(asset: AiAsset) =
+    longPreferencesKey("ai_asset_${asset.name}_total")
 
 private fun androidx.datastore.preferences.core.MutablePreferences.clearProgress(
     typeKey: Preferences.Key<String>,
