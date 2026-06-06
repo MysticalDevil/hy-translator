@@ -4,8 +4,8 @@ import android.content.Context
 import org.devil.hytranslator.R
 import org.devil.hytranslator.data.repository.AiAssetRepositoryImpl
 import org.devil.hytranslator.data.repository.LanguageRepositoryImpl
-import org.devil.hytranslator.data.repository.MlKitOcrTextRepository
 import org.devil.hytranslator.data.repository.ModelRepositoryImpl
+import org.devil.hytranslator.data.repository.PaddleLiteOcrTextRepository
 import org.devil.hytranslator.data.repository.SherpaOnnxVoiceInputRepository
 import org.devil.hytranslator.data.repository.TranslatorRepositoryImpl
 import org.devil.hytranslator.domain.repository.AiAssetRepository
@@ -49,7 +49,7 @@ class DefaultAppContainer(
     }
 
     override fun createOcrTextRepository(): OcrTextRepository =
-        MlKitOcrTextRepository(appContext)
+        PaddleLiteOcrTextRepository(appContext)
 
     private val voiceInputRepository: VoiceInputRepository by lazy {
         SherpaOnnxVoiceInputRepository()

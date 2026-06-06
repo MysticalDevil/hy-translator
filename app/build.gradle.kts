@@ -93,22 +93,24 @@ tasks.register("verifySherpaOnnxRuntime") {
     }
 }
 
+val paddleLiteRuntimeDir = rootProject.layout.projectDirectory.dir("third_party/paddle-lite-android")
+val paddlePredictorJar = paddleLiteRuntimeDir.file("PaddlePredictor.jar")
+
 tasks.register("verifyPaddleLiteRuntime") {
     group = "verification"
     description = "Checks that the local Paddle Lite Android runtime is installed."
 
-    val runtimeDir = rootProject.layout.projectDirectory.dir("third_party/paddle-lite-android")
     val requiredFiles = listOf(
         "PaddlePredictor.jar",
         "jniLibs/arm64-v8a/libpaddle_lite_jni.so",
         "jniLibs/arm64-v8a/libc++_shared.so",
     )
 
-    inputs.dir(runtimeDir).optional()
+    inputs.dir(paddleLiteRuntimeDir).optional()
 
     doLast {
         val missing = requiredFiles.mapNotNull { relativePath ->
-            val file = runtimeDir.file(relativePath).asFile
+            val file = paddleLiteRuntimeDir.file(relativePath).asFile
             if (file.isFile) null else file
         }
         check(missing.isEmpty()) {
@@ -122,12 +124,7 @@ tasks.register("verifyPaddleLiteRuntime") {
 dependencies {
   implementation(project(":lib"))
 
-  val paddlePredictorJar = rootProject.layout.projectDirectory
-      .file("third_party/paddle-lite-android/PaddlePredictor.jar")
-      .asFile
-  if (paddlePredictorJar.isFile) {
-      implementation(files(paddlePredictorJar))
-  }
+  implementation(files(paddlePredictorJar.asFile))
 
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
@@ -169,4 +166,12 @@ dependencies {
   androidTestImplementation(libs.androidx.junit)
   androidTestImplementation(libs.androidx.test.runner)
   androidTestImplementation(libs.androidx.test.espresso.core)
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    dependsOn("verifyPaddleLiteRuntime")
+}
+
+tasks.named("preBuild").configure {
+    dependsOn("verifyPaddleLiteRuntime")
 }

@@ -116,18 +116,22 @@
 
 ### OCR
 
-- `AppContainer` 仍创建 `MlKitOcrTextRepository`，`OcrEngine` 仍使用
-  ML Kit Chinese Text Recognition；PaddleOCR PP-OCRv5 mobile runtime 尚未接入。
+- `AppContainer` 已从 `MlKitOcrTextRepository` 切到 `PaddleLiteOcrTextRepository`；
+  生产入口不再继续创建 ML Kit OCR adapter。ML Kit 依赖和旧 adapter 代码暂时保留，等
+  PaddleOCR det/rec pipeline 可用后再清理。
 - `AiAsset.OcrPpOcrV5Mobile` 已配置官方 Paddle Lite demo 资源来源，下载器支持
   tar.gz 解包并提取 `PP-OCRv5_mobile_det.nb`、`PP-OCRv5_mobile_rec.nb`、
-  `ppocr_keys_ocrv5.txt`。后续仍要接 PaddleOCR runtime，而不是继续使用 ML Kit。
-- Gradle 依赖仍包含 ML Kit OCR，尚无 PaddleOCR/Paddle Lite runtime 或 native libs。
+  `ppocr_keys_ocrv5.txt`。
 - 已新增官方 Paddle Lite Android runtime 安装脚本和 Gradle 本地打包入口；
   运行 `scripts/setup-paddle-lite-android.sh` 后可用 `:app:verifyPaddleLiteRuntime`
   验证 `PaddlePredictor.jar`、`libpaddle_lite_jni.so` 和 `libc++_shared.so`。
-  后续还要把 `MlKitOcrTextRepository` 替换为 Paddle Lite predictor adapter。
-- OCR adapter 边界已有，但还缺 PaddleOCR 初始化、模型文件校验、bitmap 预处理、
-  det/rec pipeline、typed error 和真机 smoke 验证。
+  Kotlin 编译和打包前会先执行 runtime 校验，避免缺少本地 Paddle jar 时出现不可读的
+  unresolved import 错误。
+- PaddleOCR adapter 已完成 runtime 初始化、模型文件校验、label 文件校验、det/rec
+  predictor 创建和 EXIF 旋转沿用；当前真实识别仍会返回明确的
+  “PaddleOCR recognition pipeline is not integrated yet” 错误。
+- 仍缺 bitmap 预处理、det 后处理、rec crop/resize、rec decode、typed error 收敛、
+  instrumented OCR smoke 测试和真机验证。
 
 ### ASR
 
