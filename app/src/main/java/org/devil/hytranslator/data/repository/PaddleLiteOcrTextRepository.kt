@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.devil.hytranslator.platform.ocr.OcrTextRepository
 import java.io.File
+import kotlin.math.ceil
 
 class PaddleLiteOcrTextRepository(
     private val context: Context,
@@ -22,8 +23,9 @@ class PaddleLiteOcrTextRepository(
 
     override suspend fun recognize(bitmap: Bitmap): String {
         val activeSession = session ?: runtime.createSession().also { session = it }
-        activeSession.ensureReady()
-        throw OcrProcessingException("PaddleOCR recognition pipeline is not integrated yet")
+        return withContext(Dispatchers.Default) {
+            activeSession.recognizeSingleLine(bitmap)
+        }
     }
 
     override suspend fun recognize(uri: Uri, decodeFailedMessage: String): String {
@@ -117,18 +119,157 @@ class PaddleLiteOcrSession(
     private val recPredictor: PaddleLitePredictorHandle,
     val labels: List<String>,
 ) {
+    private val characterDictionary = buildList {
+        add("#")
+        addAll(labels)
+        add(" ")
+    }
+
     fun ensureReady() {
         detPredictor.version()
         recPredictor.version()
+    }
+
+    fun recognizeSingleLine(bitmap: Bitmap): String {
+        ensureReady()
+        val input = PaddleOcrRecognitionPreprocessor.createInput(bitmap)
+        recPredictor.setInput(input.shape, input.data)
+        check(recPredictor.run()) {
+            "PaddleOCR recognition predictor failed"
+        }
+        val decoded = PaddleOcrCtcDecoder.decode(
+            probabilities = recPredictor.outputFloatData(),
+            shape = recPredictor.outputShape(),
+            dictionary = characterDictionary,
+        )
+        return decoded.text
     }
 }
 
 interface PaddleLitePredictorHandle {
     fun version(): String
+    fun setInput(shape: LongArray, data: FloatArray)
+    fun run(): Boolean
+    fun outputShape(): LongArray
+    fun outputFloatData(): FloatArray
 }
 
 private class DefaultPaddleLitePredictorHandle(
     private val predictor: PaddlePredictor,
 ) : PaddleLitePredictorHandle {
     override fun version(): String = predictor.getVersion()
+    override fun setInput(shape: LongArray, data: FloatArray) {
+        val input = predictor.getInput(0)
+        input.resize(shape)
+        input.setData(data)
+    }
+
+    override fun run(): Boolean = predictor.run()
+
+    override fun outputShape(): LongArray = predictor.getOutput(0).shape()
+
+    override fun outputFloatData(): FloatArray = predictor.getOutput(0).floatData
+}
+
+data class PaddleOcrDecodeResult(
+    val text: String,
+    val score: Float,
+)
+
+data class PaddleOcrRecognitionInput(
+    val shape: LongArray,
+    val data: FloatArray,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is PaddleOcrRecognitionInput) return false
+        return shape.contentEquals(other.shape) && data.contentEquals(other.data)
+    }
+
+    override fun hashCode(): Int {
+        var result = shape.contentHashCode()
+        result = 31 * result + data.contentHashCode()
+        return result
+    }
+}
+
+object PaddleOcrRecognitionPreprocessor {
+    fun createInput(bitmap: Bitmap): PaddleOcrRecognitionInput {
+        require(bitmap.width > 0 && bitmap.height > 0) {
+            "PaddleOCR input bitmap is empty"
+        }
+        val resizedHeight = 32
+        val widthRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
+        val resizedWidth = ceil(resizedHeight * widthRatio).toInt().coerceAtLeast(1)
+        val resizedBitmap = Bitmap.createScaledBitmap(bitmap, resizedWidth, resizedHeight, true)
+        val pixels = IntArray(resizedWidth * resizedHeight)
+        resizedBitmap.getPixels(pixels, 0, resizedWidth, 0, 0, resizedWidth, resizedHeight)
+
+        val planeSize = resizedWidth * resizedHeight
+        val data = FloatArray(3 * planeSize)
+        pixels.forEachIndexed { index, pixel ->
+            val red = (pixel shr 16) and 0xFF
+            val green = (pixel shr 8) and 0xFF
+            val blue = pixel and 0xFF
+            data[index] = normalize(blue)
+            data[planeSize + index] = normalize(green)
+            data[planeSize * 2 + index] = normalize(red)
+        }
+        return PaddleOcrRecognitionInput(
+            shape = longArrayOf(1, 3, resizedHeight.toLong(), resizedWidth.toLong()),
+            data = data,
+        )
+    }
+
+    private fun normalize(channel: Int): Float = (channel / 255f - 0.5f) / 0.5f
+}
+
+object PaddleOcrCtcDecoder {
+    fun decode(
+        probabilities: FloatArray,
+        shape: LongArray,
+        dictionary: List<String>,
+    ): PaddleOcrDecodeResult {
+        require(shape.size >= 3) {
+            "PaddleOCR recognition output shape must have at least 3 dimensions"
+        }
+        val steps = shape[1].toInt()
+        val classes = shape[2].toInt()
+        require(steps > 0 && classes > 0) {
+            "PaddleOCR recognition output shape is empty"
+        }
+        require(probabilities.size >= steps * classes) {
+            "PaddleOCR recognition output data is shorter than its shape"
+        }
+        require(dictionary.size >= classes) {
+            "PaddleOCR label dictionary is smaller than recognition output classes"
+        }
+
+        val text = StringBuilder()
+        var lastIndex = 0
+        var score = 0f
+        var count = 0
+        for (step in 0 until steps) {
+            val offset = step * classes
+            var maxIndex = 0
+            var maxValue = probabilities[offset]
+            for (index in 1 until classes) {
+                val value = probabilities[offset + index]
+                if (value > maxValue) {
+                    maxValue = value
+                    maxIndex = index
+                }
+            }
+            if (maxIndex > 0 && maxIndex != lastIndex) {
+                text.append(dictionary[maxIndex])
+                score += maxValue
+                count += 1
+            }
+            lastIndex = maxIndex
+        }
+        return PaddleOcrDecodeResult(
+            text = text.toString(),
+            score = if (count == 0) 0f else score / count,
+        )
+    }
 }

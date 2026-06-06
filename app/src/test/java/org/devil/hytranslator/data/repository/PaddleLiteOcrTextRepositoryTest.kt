@@ -63,6 +63,47 @@ class PaddleLiteOcrTextRepositoryTest {
         assertEquals("PaddleOCR label file is empty", error.message)
     }
 
+    @Test
+    fun decode_whenOutputHasRepeatsAndBlank_decodesCtcText() {
+        val result = PaddleOcrCtcDecoder.decode(
+            probabilities = floatArrayOf(
+                0.1f,
+                0.8f,
+                0.1f,
+                0.1f,
+                0.7f,
+                0.2f,
+                0.9f,
+                0.05f,
+                0.05f,
+                0.05f,
+                0.1f,
+                0.85f,
+            ),
+            shape = longArrayOf(1, 4, 3),
+            dictionary = listOf("#", "你", "好"),
+        )
+
+        assertEquals("你好", result.text)
+        assertEquals(0.825f, result.score, 0.0001f)
+    }
+
+    @Test
+    fun decode_whenDictionaryIsTooSmall_reportsInvalidLabels() {
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            PaddleOcrCtcDecoder.decode(
+                probabilities = floatArrayOf(0.1f, 0.9f),
+                shape = longArrayOf(1, 1, 2),
+                dictionary = listOf("#"),
+            )
+        }
+
+        assertEquals(
+            "PaddleOCR label dictionary is smaller than recognition output classes",
+            error.message,
+        )
+    }
+
     private fun createOcrFiles(labels: String) {
         val dir = File(temporaryFolder.root, "ai-assets/pp-ocrv5-mobile")
         check(dir.mkdirs())
@@ -73,5 +114,9 @@ class PaddleLiteOcrTextRepositoryTest {
 
     private object FakePaddleLitePredictorHandle : PaddleLitePredictorHandle {
         override fun version(): String = "test"
+        override fun setInput(shape: LongArray, data: FloatArray) = Unit
+        override fun run(): Boolean = true
+        override fun outputShape(): LongArray = longArrayOf(1, 1, 1)
+        override fun outputFloatData(): FloatArray = floatArrayOf(1f)
     }
 }
