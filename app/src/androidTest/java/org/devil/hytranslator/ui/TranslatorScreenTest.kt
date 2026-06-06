@@ -5,7 +5,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.devil.hytranslator.R
 import org.devil.hytranslator.domain.model.AiAssetState
@@ -140,6 +142,72 @@ class TranslatorScreenTest {
             .assertExists()
     }
 
+    @Test
+    fun translatorScreen_assetDownloadStatesRemainIndependent() {
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "",
+                    outputText = "",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    asrAssetState = AiAssetState.Downloading(null),
+                    ocrAssetState = AiAssetState.NotDownloaded,
+                    modelStatus = ModelStatus.Ready,
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(TranslatorTestTags.AsrAssetStatus)
+            .assertExists()
+        composeRule.onNodeWithTag(TranslatorTestTags.OcrAssetStatus)
+            .assertExists()
+        composeRule.onNodeWithText(
+            string(R.string.asset_downloading, string(R.string.asset_asr_zipformer)),
+        ).assertExists()
+        composeRule.onNodeWithText(
+            string(R.string.asset_not_downloaded, string(R.string.asset_ocr_ppocrv5)),
+        ).assertExists()
+    }
+
+    @Test
+    fun translatorScreen_assetDownloadButtonsEmitMatchingAsset() {
+        val requestedAssets = mutableListOf<org.devil.hytranslator.domain.model.AiAsset>()
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "",
+                    outputText = "",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    asrAssetState = AiAssetState.NotDownloaded,
+                    ocrAssetState = AiAssetState.NotDownloaded,
+                    modelStatus = ModelStatus.Ready,
+                    onDownloadAiAsset = requestedAssets::add,
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(TranslatorTestTags.AsrAssetDownload)
+            .performClick()
+        composeRule.onNodeWithTag(TranslatorTestTags.OcrAssetDownload)
+            .performClick()
+
+        org.junit.Assert.assertEquals(
+            listOf(
+                org.devil.hytranslator.domain.model.AiAsset.AsrStreamingZipformer,
+                org.devil.hytranslator.domain.model.AiAsset.OcrPpOcrV5Mobile,
+            ),
+            requestedAssets,
+        )
+    }
+
     private fun string(resId: Int, vararg formatArgs: Any): String =
         composeRule.activity.getString(resId, *formatArgs)
 
@@ -156,6 +224,7 @@ class TranslatorScreenTest {
         asrAssetState: AiAssetState,
         ocrAssetState: AiAssetState,
         modelStatus: ModelStatus,
+        onDownloadAiAsset: (org.devil.hytranslator.domain.model.AiAsset) -> Unit = {},
     ) {
         TranslatorScreen(
             inputText = inputText,
@@ -179,7 +248,7 @@ class TranslatorScreenTest {
             ocrAssetState = ocrAssetState,
             ocrFlow = OcrFlow.Hidden,
             onVoiceInputToggle = {},
-            onDownloadAiAsset = {},
+            onDownloadAiAsset = onDownloadAiAsset,
             onStartOcr = {},
             onOcrBitmapCaptured = {},
             onOcrDismiss = {},

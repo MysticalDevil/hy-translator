@@ -667,7 +667,9 @@ private fun AiAssetStatusRow(
     }
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(asset.statusTag),
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(12.dp),
     ) {
@@ -702,7 +704,10 @@ private fun AiAssetStatusRow(
                     modifier = Modifier.weight(1f),
                 )
                 if (state !is AiAssetState.Downloading) {
-                    TextButton(onClick = onDownload) {
+                    TextButton(
+                        onClick = onDownload,
+                        modifier = Modifier.testTag(asset.downloadTag),
+                    ) {
                         Text(stringResource(R.string.asset_download))
                     }
                 }
@@ -720,6 +725,18 @@ private fun AiAssetStatusRow(
         }
     }
 }
+
+private val AiAsset.statusTag: String
+    get() = when (this) {
+        AiAsset.AsrStreamingZipformer -> TranslatorTestTags.AsrAssetStatus
+        AiAsset.OcrPpOcrV5Mobile -> TranslatorTestTags.OcrAssetStatus
+    }
+
+private val AiAsset.downloadTag: String
+    get() = when (this) {
+        AiAsset.AsrStreamingZipformer -> TranslatorTestTags.AsrAssetDownload
+        AiAsset.OcrPpOcrV5Mobile -> TranslatorTestTags.OcrAssetDownload
+    }
 
 @Composable
 private fun OutputCard(
