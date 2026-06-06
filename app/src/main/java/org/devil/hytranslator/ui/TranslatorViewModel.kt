@@ -212,6 +212,8 @@ class TranslatorViewModel(
         voiceInputJob = viewModelScope.launch {
             val nextState = voiceInputRepository.start(
                 aiAssetRepository.localPath(AiAsset.AsrStreamingZipformer),
+                onPartialResult = ::onAsrTextReceived,
+                onFinalResult = ::onAsrTextReceived,
             )
             _uiState.update { it.copy(voiceInputState = nextState) }
         }

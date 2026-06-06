@@ -220,6 +220,27 @@ class TranslatorViewModelTest {
     }
 
     @Test
+    fun voiceInput_whenRepositoryEmitsPartial_updatesInputText() = runTest {
+        val aiAssetRepository = FakeAiAssetRepository().apply {
+            asrState.value = AiAssetState.Ready
+        }
+        val voiceInputRepository = FakeVoiceInputRepository(
+            onStart = { _, onPartialResult, _ -> onPartialResult("hello") },
+        )
+        val viewModel = createViewModel(
+            aiAssetRepository = aiAssetRepository,
+            voiceInputRepository = voiceInputRepository,
+        )
+
+        viewModel.initialize()
+        advanceUntilIdle()
+        viewModel.onEvent(TranslatorEvent.VoiceInputToggled(true))
+        advanceUntilIdle()
+
+        assertEquals("hello", viewModel.uiState.value.inputText)
+    }
+
+    @Test
     fun voiceInput_whenDisabled_stopsRuntimeAndReturnsIdle() = runTest {
         val aiAssetRepository = FakeAiAssetRepository().apply {
             asrState.value = AiAssetState.Ready
@@ -532,14 +553,25 @@ class TranslatorViewModelTest {
             "/ai-assets/${asset.name}"
     }
 
-    private class FakeVoiceInputRepository : VoiceInputRepository {
+    private class FakeVoiceInputRepository(
+        private val onStart: (
+            assetPath: String,
+            onPartialResult: (String) -> Unit,
+            onFinalResult: (String) -> Unit,
+        ) -> Unit = { _, _, _ -> },
+    ) : VoiceInputRepository {
         var startedAssetPath: String? = null
             private set
         var stopped = false
             private set
 
-        override suspend fun start(assetPath: String): VoiceInputState {
+        override suspend fun start(
+            assetPath: String,
+            onPartialResult: (String) -> Unit,
+            onFinalResult: (String) -> Unit,
+        ): VoiceInputState {
             startedAssetPath = assetPath
+            onStart(assetPath, onPartialResult, onFinalResult)
             return VoiceInputState.Listening
         }
 

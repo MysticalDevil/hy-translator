@@ -18,7 +18,7 @@ class SherpaOnnxVoiceInputRepositoryTest {
             nativeLoader = { error("native loader should not run") },
         )
 
-        val state = repository.start(temporaryFolder.root.absolutePath)
+        val state = repository.start(temporaryFolder.root.absolutePath, {}, {})
 
         assertEquals(
             VoiceInputState.Error("Missing sherpa-onnx ASR file: encoder-epoch-99-avg-1.onnx"),
@@ -33,7 +33,7 @@ class SherpaOnnxVoiceInputRepositoryTest {
             nativeLoader = { throw UnsatisfiedLinkError("missing") },
         )
 
-        val state = repository.start(temporaryFolder.root.absolutePath)
+        val state = repository.start(temporaryFolder.root.absolutePath, {}, {})
 
         assertEquals(
             VoiceInputState.Error(
@@ -44,16 +44,33 @@ class SherpaOnnxVoiceInputRepositoryTest {
     }
 
     @Test
-    fun start_whenNativeRuntimeLoads_returnsAudioRecordIntegrationError() = runTest {
+    fun start_whenSessionStarts_returnsListeningState() = runTest {
         createRequiredModelFiles()
-        val repository = SherpaOnnxVoiceInputRepository(nativeLoader = {})
-
-        val state = repository.start(temporaryFolder.root.absolutePath)
-
-        assertEquals(
-            VoiceInputState.Error("AudioRecord streaming decode is not integrated yet"),
-            state,
+        val session = FakeVoiceInputSession()
+        val repository = SherpaOnnxVoiceInputRepository(
+            nativeLoader = {},
+            sessionFactory = { _, _, _ -> session },
         )
+
+        val state = repository.start(temporaryFolder.root.absolutePath, {}, {})
+
+        assertEquals(VoiceInputState.Listening, state)
+        assertEquals(true, session.started)
+    }
+
+    @Test
+    fun start_whenSessionFails_returnsSessionError() = runTest {
+        createRequiredModelFiles()
+        val repository = SherpaOnnxVoiceInputRepository(
+            nativeLoader = {},
+            sessionFactory = { _, _, _ ->
+                FakeVoiceInputSession(startResult = Result.failure(IllegalStateException("mic failed")))
+            },
+        )
+
+        val state = repository.start(temporaryFolder.root.absolutePath, {}, {})
+
+        assertEquals(VoiceInputState.Error("mic failed"), state)
     }
 
     private fun createRequiredModelFiles() {
@@ -65,5 +82,19 @@ class SherpaOnnxVoiceInputRepositoryTest {
         ).forEach { name ->
             temporaryFolder.newFile(name).writeText("test")
         }
+    }
+
+    private class FakeVoiceInputSession(
+        private val startResult: Result<Unit> = Result.success(Unit),
+    ) : VoiceInputSession {
+        var started = false
+            private set
+
+        override fun start(): Result<Unit> {
+            started = true
+            return startResult
+        }
+
+        override fun stop() = Unit
     }
 }

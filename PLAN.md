@@ -135,19 +135,20 @@
 
 ### ASR
 
-- `SherpaOnnxVoiceInputRepository` 已不再是固定占位错误：会校验 Zipformer 模型文件、
-  尝试加载 `libsherpa-onnx-jni.so`，并在缺模型/缺 native runtime/缺 AudioRecord streaming
-  时返回明确错误。真实 streaming decode 和音频采集仍未接入。
+- `SherpaOnnxVoiceInputRepository` 已接入真实 AudioRecord + sherpa-onnx streaming
+  Zipformer session：启动时校验模型文件、加载 `libsherpa-onnx-jni.so`，创建
+  `OnlineRecognizer`，后台采集 16 kHz PCM16，向 recognizer streaming 输入 samples，
+  并把 partial/final 文本回写 `TranslatorViewModel` 输入框。
 - Manifest 已声明 `RECORD_AUDIO`，Route 层已接入录音权限请求；权限拒绝会进入
   `VoiceInputState.Error`。后续还要补 instrumented 权限测试。
 - 已新增官方 sherpa-onnx Android runtime 安装脚本和 Gradle `jniLibs` 本地打包入口；
   运行 `scripts/setup-sherpa-onnx-android.sh` 后可用 `:app:verifySherpaOnnxRuntime` 验证 native libs。
-  当前采用官方 release 产物生成流程；如后续需要源码级定制，再按 llama.cpp 类似方式引入 submodule。
-- `VoiceInputRepository.start()` 目前只返回单个 `VoiceInputState`，不足以表达 streaming
-  partial/final result、音量/监听状态、采集错误和 runtime 关闭事件；需要改为 Flow 或 callback
-  驱动的 typed event。
-- 现有 `AsrPartialReceived` / `AsrFinalReceived` 只是 UI event，尚未连接真实 `AudioRecord`
-  采集和 sherpa 解码结果。
+  当前采用官方 release 产物生成流程；`k2-fsa/sherpa-onnx` 已作为 submodule 加入，用作
+  Kotlin/JNI API 上游参照。
+- `VoiceInputRepository.start()` 已改为 callback 驱动，能表达 streaming partial/final result；
+  后续仍要把采集错误、runtime 关闭事件和音量/监听状态扩展为 typed event 或 Flow。
+- 现有 `AsrPartialReceived` / `AsrFinalReceived` 仍保留为 UI event，但真实 `AudioRecord`
+  路径已直接通过 repository callback 连接 `TranslatorViewModel`。
 
 ### UI 和状态架构
 
