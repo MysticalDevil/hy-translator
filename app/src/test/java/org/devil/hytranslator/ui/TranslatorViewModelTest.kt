@@ -26,6 +26,7 @@ import org.devil.hytranslator.domain.repository.AiAssetRepository
 import org.devil.hytranslator.domain.repository.LanguageRepository
 import org.devil.hytranslator.domain.repository.ModelRepository
 import org.devil.hytranslator.domain.repository.TranslatorRepository
+import org.devil.hytranslator.domain.repository.VoiceInputRepository
 import org.devil.hytranslator.service.AiAssetDownloadActions
 import org.devil.hytranslator.service.ModelDownloadActions
 import org.devil.hytranslator.service.ModelDownloadNotifications
@@ -202,14 +203,41 @@ class TranslatorViewModelTest {
         val aiAssetRepository = FakeAiAssetRepository().apply {
             asrState.value = AiAssetState.Ready
         }
-        val viewModel = createViewModel(aiAssetRepository = aiAssetRepository)
+        val voiceInputRepository = FakeVoiceInputRepository()
+        val viewModel = createViewModel(
+            aiAssetRepository = aiAssetRepository,
+            voiceInputRepository = voiceInputRepository,
+        )
 
         viewModel.initialize()
         advanceUntilIdle()
         viewModel.onEvent(TranslatorEvent.VoiceInputToggled(true))
+        advanceUntilIdle()
 
+        assertEquals("/ai-assets/AsrStreamingZipformer", voiceInputRepository.startedAssetPath)
         assertSame(AiAssetState.Ready, viewModel.uiState.value.asrAssetState)
         assertSame(VoiceInputState.Listening, viewModel.uiState.value.voiceInputState)
+    }
+
+    @Test
+    fun voiceInput_whenDisabled_stopsRuntimeAndReturnsIdle() = runTest {
+        val aiAssetRepository = FakeAiAssetRepository().apply {
+            asrState.value = AiAssetState.Ready
+        }
+        val voiceInputRepository = FakeVoiceInputRepository()
+        val viewModel = createViewModel(
+            aiAssetRepository = aiAssetRepository,
+            voiceInputRepository = voiceInputRepository,
+        )
+
+        viewModel.initialize()
+        advanceUntilIdle()
+        viewModel.onEvent(TranslatorEvent.VoiceInputToggled(true))
+        advanceUntilIdle()
+        viewModel.onEvent(TranslatorEvent.VoiceInputToggled(false))
+
+        assertTrue(voiceInputRepository.stopped)
+        assertSame(VoiceInputState.Idle, viewModel.uiState.value.voiceInputState)
     }
 
     @Test
@@ -358,6 +386,7 @@ class TranslatorViewModelTest {
         translatorRepository: FakeTranslatorRepository = FakeTranslatorRepository(),
         modelRepository: FakeModelRepository = FakeModelRepository(),
         aiAssetRepository: FakeAiAssetRepository = FakeAiAssetRepository(),
+        voiceInputRepository: FakeVoiceInputRepository = FakeVoiceInputRepository(),
         downloadActions: FakeModelDownloadActions = FakeModelDownloadActions(),
         aiAssetDownloadActions: FakeAiAssetDownloadActions = FakeAiAssetDownloadActions(),
         notifications: FakeModelDownloadNotifications = FakeModelDownloadNotifications(),
@@ -367,6 +396,7 @@ class TranslatorViewModelTest {
             languageRepository = FakeLanguageRepository(),
             modelRepository = modelRepository,
             aiAssetRepository = aiAssetRepository,
+            voiceInputRepository = voiceInputRepository,
             modelDownloadController = downloadActions,
             aiAssetDownloadController = aiAssetDownloadActions,
             modelDownloadNotifier = notifications,
@@ -486,6 +516,22 @@ class TranslatorViewModelTest {
 
         override fun localPath(asset: AiAsset): String =
             "/ai-assets/${asset.name}"
+    }
+
+    private class FakeVoiceInputRepository : VoiceInputRepository {
+        var startedAssetPath: String? = null
+            private set
+        var stopped = false
+            private set
+
+        override suspend fun start(assetPath: String): VoiceInputState {
+            startedAssetPath = assetPath
+            return VoiceInputState.Listening
+        }
+
+        override fun stop() {
+            stopped = true
+        }
     }
 
     private class FakeModelDownloadActions : ModelDownloadActions {

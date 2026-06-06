@@ -116,6 +116,30 @@ class TranslatorScreenTest {
         composeRule.onNodeWithText(string(R.string.model_clear_all)).assertExists()
     }
 
+    @Test
+    fun translatorScreen_voiceRuntimeErrorShowsMessage() {
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "",
+                    outputText = "",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    voiceInputState = VoiceInputState.Error("runtime missing"),
+                    asrAssetState = AiAssetState.Ready,
+                    ocrAssetState = AiAssetState.Ready,
+                    modelStatus = ModelStatus.Ready,
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(string(R.string.voice_input_error, "runtime missing"))
+            .assertExists()
+    }
+
     private fun string(resId: Int, vararg formatArgs: Any): String =
         composeRule.activity.getString(resId, *formatArgs)
 
@@ -128,6 +152,7 @@ class TranslatorScreenTest {
         isSwapEnabled: Boolean,
         isTranslating: Boolean,
         isLiveTranslateEnabled: Boolean,
+        voiceInputState: VoiceInputState = VoiceInputState.Idle,
         asrAssetState: AiAssetState,
         ocrAssetState: AiAssetState,
         modelStatus: ModelStatus,
@@ -149,7 +174,7 @@ class TranslatorScreenTest {
             isTranslating = isTranslating,
             isLiveTranslateEnabled = isLiveTranslateEnabled,
             onLiveTranslateToggle = {},
-            voiceInputState = VoiceInputState.Idle,
+            voiceInputState = voiceInputState,
             asrAssetState = asrAssetState,
             ocrAssetState = ocrAssetState,
             ocrFlow = OcrFlow.Hidden,

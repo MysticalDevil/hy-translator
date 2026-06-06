@@ -223,6 +223,11 @@ fun TranslatorScreen(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
 
+                VoiceInputStatusMessage(
+                    voiceInputState = voiceInputState,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+
                 AnimatedVisibility(
                     visible = outputText.isNotEmpty() || isTranslating,
                     enter = fadeIn(tween(200)) + expandVertically(
@@ -598,6 +603,27 @@ private fun InputArea(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun VoiceInputStatusMessage(
+    voiceInputState: VoiceInputState,
+    modifier: Modifier = Modifier,
+) {
+    if (voiceInputState !is VoiceInputState.Error) return
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.errorContainer,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.voice_input_error, voiceInputState.message),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+        )
     }
 }
 

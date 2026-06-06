@@ -28,6 +28,7 @@ import org.devil.hytranslator.domain.repository.AiAssetRepository
 import org.devil.hytranslator.domain.repository.LanguageRepository
 import org.devil.hytranslator.domain.repository.ModelRepository
 import org.devil.hytranslator.domain.repository.TranslatorRepository
+import org.devil.hytranslator.domain.repository.VoiceInputRepository
 import org.devil.hytranslator.service.AiAssetDownloadActions
 import org.devil.hytranslator.service.ModelDownloadActions
 import org.devil.hytranslator.service.ModelDownloadNotifications
@@ -37,6 +38,7 @@ class TranslatorViewModel(
     private val languageRepository: LanguageRepository,
     private val modelRepository: ModelRepository,
     private val aiAssetRepository: AiAssetRepository,
+    private val voiceInputRepository: VoiceInputRepository,
     private val modelDownloadController: ModelDownloadActions,
     private val aiAssetDownloadController: AiAssetDownloadActions,
     private val modelDownloadNotifier: ModelDownloadNotifications,
@@ -97,6 +99,7 @@ class TranslatorViewModel(
     private var loadJob: Job? = null
     private var aiAssetJob: Job? = null
     private var aiAssetServiceJob: Job? = null
+    private var voiceInputJob: Job? = null
     private var modelOperationId = 0L
     private var translationOperationId = 0L
     private var initialized = false
@@ -191,19 +194,25 @@ class TranslatorViewModel(
 
     fun onVoiceInputToggled(enabled: Boolean) {
         if (!enabled) {
+            voiceInputJob?.cancel()
+            voiceInputJob = null
+            voiceInputRepository.stop()
             _uiState.update { it.copy(voiceInputState = VoiceInputState.Idle) }
             return
         }
 
         val state = _uiState.value.asrAssetState
-        _uiState.update {
-            it.copy(
-                voiceInputState = if (state is AiAssetState.Ready) {
-                    VoiceInputState.Listening
-                } else {
-                    VoiceInputState.NeedsAsrModel
-                },
+        if (state !is AiAssetState.Ready) {
+            _uiState.update { it.copy(voiceInputState = VoiceInputState.NeedsAsrModel) }
+            return
+        }
+
+        voiceInputJob?.cancel()
+        voiceInputJob = viewModelScope.launch {
+            val nextState = voiceInputRepository.start(
+                aiAssetRepository.localPath(AiAsset.AsrStreamingZipformer),
             )
+            _uiState.update { it.copy(voiceInputState = nextState) }
         }
     }
 

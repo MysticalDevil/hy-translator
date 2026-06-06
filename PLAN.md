@@ -28,7 +28,8 @@
 - `MainActivity` 和 `TranslatorRoute` 已不再手动创建 repository、controller、notifier；
   当前通过 `HyTranslatorApplication` + `AppContainer` 作为过渡 DI 入口，最终仍应收敛到 Hilt。
 - `TranslatorViewModel` 同时负责翻译、模型下载、模型加载、
-  通知状态观察、语言列表和清理逻辑，职责过宽。
+  通知状态观察、语言列表和清理逻辑，职责仍偏宽；ASR runtime 启停已通过
+  `VoiceInputRepository` 抽象隔离。
 - UI 层已不再直接引用 `data.Languages`、`data.ModelOptions`；OCR 权限、相册 launcher
   由 Route 处理，OCR 状态转换集中到 `OcrWorkflowController`，图片解码、EXIF 旋转和
   ML Kit OCR 已封装到 `platform.ocr.OcrProcessor`；仍有 CameraX 预览和较大 Screen
@@ -255,6 +256,11 @@ DI 默认决策：
   - `AiAsset` 描述 translation/asr/ocr 资源、文件清单、大小、校验、下载 URL 和本地路径。
   - `AiAssetRepository` 暴露资源状态、下载、校验和清理。
   - ASR/OCR 模型首次下载，不进入 APK。
+- ASR 资源下载和 runtime 启停已拆开：
+  - 资源状态仍由 `AiAssetRepository` lazy 检查和下载。
+  - 语音 runtime 通过 `VoiceInputRepository` lazy start/stop。
+  - 当前生产实现 `SherpaOnnxVoiceInputRepository` 是显式未接入占位，返回 UI 可见错误；
+    后续在该 adapter 内接入 sherpa-onnx streaming runtime。
 - ASR 使用 sherpa-onnx streaming Zipformer：
   - 第一版模型为 `sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20`。
   - 支持中英语音输入，输出 partial/final result。

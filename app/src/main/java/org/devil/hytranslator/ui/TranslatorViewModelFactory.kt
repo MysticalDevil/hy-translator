@@ -6,6 +6,7 @@ import org.devil.hytranslator.domain.repository.AiAssetRepository
 import org.devil.hytranslator.domain.repository.LanguageRepository
 import org.devil.hytranslator.domain.repository.ModelRepository
 import org.devil.hytranslator.domain.repository.TranslatorRepository
+import org.devil.hytranslator.domain.repository.VoiceInputRepository
 import org.devil.hytranslator.service.AiAssetDownloadActions
 import org.devil.hytranslator.service.ModelDownloadActions
 import org.devil.hytranslator.service.ModelDownloadNotifications
@@ -15,6 +16,7 @@ class TranslatorViewModelFactory(
     private val languageRepository: LanguageRepository,
     private val modelRepository: ModelRepository,
     private val aiAssetRepository: AiAssetRepository,
+    private val voiceInputRepository: VoiceInputRepository,
     private val modelDownloadController: ModelDownloadActions,
     private val aiAssetDownloadController: AiAssetDownloadActions,
     private val modelDownloadNotifier: ModelDownloadNotifications,
@@ -31,6 +33,7 @@ class TranslatorViewModelFactory(
             languageRepository = languageRepository,
             modelRepository = modelRepository,
             aiAssetRepository = aiAssetRepository,
+            voiceInputRepository = voiceInputRepository,
             modelDownloadController = modelDownloadController,
             aiAssetDownloadController = aiAssetDownloadController,
             modelDownloadNotifier = modelDownloadNotifier,
