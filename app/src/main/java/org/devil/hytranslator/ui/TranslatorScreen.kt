@@ -10,6 +10,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -115,6 +116,7 @@ fun TranslatorScreen(
     asrAssetState: AiAssetState,
     ocrAssetState: AiAssetState,
     ocrFlow: OcrFlow,
+    highlightedAiAsset: AiAsset? = null,
     onVoiceInputToggle: (Boolean) -> Unit,
     onDownloadAiAsset: (AiAsset) -> Unit,
     onStartOcr: () -> Unit,
@@ -219,6 +221,7 @@ fun TranslatorScreen(
                 AiAssetStatusMessages(
                     asrAssetState = asrAssetState,
                     ocrAssetState = ocrAssetState,
+                    highlightedAiAsset = highlightedAiAsset,
                     onDownloadAiAsset = onDownloadAiAsset,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
@@ -631,6 +634,7 @@ private fun VoiceInputStatusMessage(
 private fun AiAssetStatusMessages(
     asrAssetState: AiAssetState,
     ocrAssetState: AiAssetState,
+    highlightedAiAsset: AiAsset?,
     onDownloadAiAsset: (AiAsset) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -649,6 +653,7 @@ private fun AiAssetStatusMessages(
             AiAssetStatusRow(
                 asset = asset,
                 state = state,
+                highlighted = asset == highlightedAiAsset,
                 onDownload = { onDownloadAiAsset(asset) },
             )
         }
@@ -659,6 +664,7 @@ private fun AiAssetStatusMessages(
 private fun AiAssetStatusRow(
     asset: AiAsset,
     state: AiAssetState,
+    highlighted: Boolean,
     onDownload: () -> Unit,
 ) {
     val assetName = when (asset) {
@@ -669,8 +675,13 @@ private fun AiAssetStatusRow(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag(asset.statusTag),
+            .testTag(if (highlighted) asset.highlightedStatusTag else asset.statusTag),
         color = MaterialTheme.colorScheme.surfaceContainer,
+        border = if (highlighted) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+        } else {
+            null
+        },
         shape = RoundedCornerShape(12.dp),
     ) {
         Column(
@@ -736,6 +747,12 @@ private val AiAsset.downloadTag: String
     get() = when (this) {
         AiAsset.AsrStreamingZipformer -> TranslatorTestTags.AsrAssetDownload
         AiAsset.OcrPpOcrV5Mobile -> TranslatorTestTags.OcrAssetDownload
+    }
+
+private val AiAsset.highlightedStatusTag: String
+    get() = when (this) {
+        AiAsset.AsrStreamingZipformer -> TranslatorTestTags.AsrAssetHighlighted
+        AiAsset.OcrPpOcrV5Mobile -> TranslatorTestTags.OcrAssetHighlighted
     }
 
 @Composable

@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.devil.hytranslator.R
+import org.devil.hytranslator.domain.model.AiAsset
 import org.devil.hytranslator.domain.model.AiAssetState
 import org.devil.hytranslator.domain.model.Language
 import org.devil.hytranslator.domain.model.ModelOption
@@ -175,7 +176,7 @@ class TranslatorScreenTest {
 
     @Test
     fun translatorScreen_assetDownloadButtonsEmitMatchingAsset() {
-        val requestedAssets = mutableListOf<org.devil.hytranslator.domain.model.AiAsset>()
+        val requestedAssets = mutableListOf<AiAsset>()
         composeRule.setContent {
             MyApplicationTheme(dynamicColor = false) {
                 TestTranslatorScreen(
@@ -201,11 +202,37 @@ class TranslatorScreenTest {
 
         org.junit.Assert.assertEquals(
             listOf(
-                org.devil.hytranslator.domain.model.AiAsset.AsrStreamingZipformer,
-                org.devil.hytranslator.domain.model.AiAsset.OcrPpOcrV5Mobile,
+                AiAsset.AsrStreamingZipformer,
+                AiAsset.OcrPpOcrV5Mobile,
             ),
             requestedAssets,
         )
+    }
+
+    @Test
+    fun translatorScreen_highlightsNotificationTargetAsset() {
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "",
+                    outputText = "",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    asrAssetState = AiAssetState.NotDownloaded,
+                    ocrAssetState = AiAssetState.NotDownloaded,
+                    highlightedAiAsset = AiAsset.OcrPpOcrV5Mobile,
+                    modelStatus = ModelStatus.Ready,
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(TranslatorTestTags.OcrAssetHighlighted)
+            .assertExists()
+        composeRule.onNodeWithTag(TranslatorTestTags.AsrAssetStatus)
+            .assertExists()
     }
 
     private fun string(resId: Int, vararg formatArgs: Any): String =
@@ -223,8 +250,9 @@ class TranslatorScreenTest {
         voiceInputState: VoiceInputState = VoiceInputState.Idle,
         asrAssetState: AiAssetState,
         ocrAssetState: AiAssetState,
+        highlightedAiAsset: AiAsset? = null,
         modelStatus: ModelStatus,
-        onDownloadAiAsset: (org.devil.hytranslator.domain.model.AiAsset) -> Unit = {},
+        onDownloadAiAsset: (AiAsset) -> Unit = {},
     ) {
         TranslatorScreen(
             inputText = inputText,
@@ -247,6 +275,7 @@ class TranslatorScreenTest {
             asrAssetState = asrAssetState,
             ocrAssetState = ocrAssetState,
             ocrFlow = OcrFlow.Hidden,
+            highlightedAiAsset = highlightedAiAsset,
             onVoiceInputToggle = {},
             onDownloadAiAsset = onDownloadAiAsset,
             onStartOcr = {},

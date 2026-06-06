@@ -107,8 +107,8 @@
   `AiAssetDownloadService` 已按 asset 管理下载 job，支持 ASR/OCR 并发下载和分别取消。
   后续还要补 notification action instrumentation 和进程恢复验收。
 - 通知动作已覆盖取消、打开 App 和失败后重试；通知 content intent 已携带模型/AI
-  资源下载目标上下文，模型下载通知会打开模型选择入口。后续还缺 AI 资源区域高亮/滚动和
-  通知动作 instrumentation 测试。
+  资源下载目标上下文，模型下载通知会打开模型选择入口，AI 资源通知会高亮对应 ASR/OCR
+  资源状态行。后续还缺滚动定位和通知动作 instrumentation 测试。
 - UI 取消、通知取消、模型切换、清理资源和 service 自身失败之间还没有完整双向绑定；
   `TranslatorViewModel` 已收集持久化下载状态并按 AI asset 分别映射 UI 状态，但模型下载完成后的
   加载/通知语义仍依赖 App 进程存活。

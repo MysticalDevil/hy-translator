@@ -44,6 +44,7 @@ fun TranslatorRoute(
     var lastTranslateTime by remember { mutableLongStateOf(0L) }
     var pendingModelDownload by remember { mutableStateOf(false) }
     var pendingAiAssetDownload by remember { mutableStateOf<AiAsset?>(null) }
+    var highlightedAiAsset by remember { mutableStateOf<AiAsset?>(null) }
     var ocrFlow by remember { mutableStateOf<OcrFlow>(OcrFlow.Hidden) }
     val ocrTextRepository = remember(appContainer) {
         appContainer.createOcrTextRepository()
@@ -76,7 +77,9 @@ fun TranslatorRoute(
     LaunchedEffect(notificationDestination) {
         when (notificationDestination) {
             is NotificationDestination.ModelDownload -> showModelPicker = true
-            is NotificationDestination.AiAssetDownload -> Unit
+            is NotificationDestination.AiAssetDownload -> {
+                highlightedAiAsset = notificationDestination.asset
+            }
             null -> return@LaunchedEffect
         }
         onNotificationDestinationConsumed()
@@ -208,6 +211,7 @@ fun TranslatorRoute(
         asrAssetState = uiState.asrAssetState,
         ocrAssetState = uiState.ocrAssetState,
         ocrFlow = ocrFlow,
+        highlightedAiAsset = highlightedAiAsset,
         onVoiceInputToggle = { enabled ->
             if (!enabled) {
                 viewModel.onEvent(TranslatorEvent.VoiceInputToggled(false))
