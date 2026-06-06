@@ -14,17 +14,16 @@ Debug 版当前可用：
 - 前台模型下载服务和进度通知。
 - Android 16+ 使用 `Notification.ProgressStyle`，旧系统使用标准进度通知。
 - 实时文本翻译开关。
-- OCR 可从相机/相册进入，当前 runtime adapter 仍是 ML Kit。
+- OCR 可从相机/相册进入，当前 runtime adapter 已切到 Paddle Lite/PaddleOCR。
 - ASR/OCR AI 资源状态展示和按需下载入口。
 - 已移除 `android:configChanges`，支持 Activity 重建后的输入状态保留。
 
 尚未完成：
 
-- ASR runtime 尚未接入。`VoiceInputRepository` 已存在，当前
-  `SherpaOnnxVoiceInputRepository` 会返回用户可见的占位错误，后续在这里接入
-  sherpa-onnx streaming Zipformer。
-- OCR runtime 尚未切换到 PaddleOCR。`OcrTextRepository` 已存在，后续 PP-OCRv5
-  mobile 可以替换当前 ML Kit adapter，而不改变 Route/UI。
+- ASR runtime 已通过 `SherpaOnnxVoiceInputRepository`、`AudioRecord` 和
+  sherpa-onnx streaming Zipformer 接入；使用真实模型资源的真机 smoke 覆盖仍待补齐。
+- OCR production 入口已通过 `PaddleLiteOcrTextRepository` 接入；剩余 OCR 工作是
+  完整 PP-OCRv5 det 多框检测、multi-line recognition pipeline 和真机 smoke 覆盖。
 - 下载状态已经迁到 domain 类型，但 service 进度仍通过 service 级 flow 暴露；
   持久化、可恢复的进度流仍在计划中。
 - Hilt 仍在计划中。当前使用 `HyTranslatorApplication` 和手写
@@ -132,7 +131,7 @@ app/src/main/java/org/devil/hytranslator/
       ModelRepositoryImpl.kt
       TranslatorRepositoryImpl.kt
       AiAssetRepositoryImpl.kt
-      MlKitOcrTextRepository.kt
+      PaddleLiteOcrTextRepository.kt
       SherpaOnnxVoiceInputRepository.kt
   domain/
     model/

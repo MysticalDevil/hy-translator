@@ -126,6 +126,15 @@ dependencies {
 
   implementation(files(paddlePredictorJar.asFile))
 
+  constraints {
+    implementation(libs.androidx.appcompat) {
+      because("CameraX view still declares an old AppCompat runtime dependency.")
+    }
+    implementation(libs.androidx.fragment) {
+      because("CameraX view pulls Fragment transitively; keep it aligned with current AndroidX.")
+    }
+  }
+
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
   androidTestImplementation(composeBom)
@@ -137,6 +146,7 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.datastore.preferences)
+  implementation(libs.androidx.exifinterface)
 
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.tooling.preview)
@@ -150,9 +160,6 @@ dependencies {
   implementation(libs.kotlinx.coroutines.android)
 
   implementation(libs.okhttp)
-
-  // ML Kit OCR
-  implementation(libs.text.recognition.chinese)
 
   // CameraX
   implementation(libs.androidx.camera.core)

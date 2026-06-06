@@ -27,13 +27,13 @@
    - 后台、切后台、划掉 recent task、进程被系统杀死后的行为必须明确并可验证。
 
 2. **OCR 真正切换到 PaddleOCR PP-OCRv5 mobile**
-   - 当前 OCR runtime adapter 仍是 ML Kit，只是有了 `OcrTextRepository` 替换边界。
+   - 当前 OCR production adapter 已切到 Paddle Lite/PaddleOCR 边界。
    - 必须接入 PP-OCRv5 mobile det + rec + `ppocr_keys_ocrv5.txt`。
    - OCR 模型资源必须按需下载、校验、加载，不打包进 APK。
    - 相机/相册 OCR smoke path 要在真机验证。
 
 3. **ASR 真正接入 sherpa-onnx streaming Zipformer**
-   - 当前 `VoiceInputRepository` 是显式未接入占位，只返回 UI 可见错误。
+   - 当前 `VoiceInputRepository` 已接入 sherpa-onnx streaming Zipformer 和 `AudioRecord`。
    - 必须接入 sherpa-onnx streaming Zipformer runtime、JNI/native libs 和 `AudioRecord` 采集。
    - partial/final result 要实时写入输入框，并能配合实时翻译开关触发输出。
    - `RECORD_AUDIO` 权限和监听状态必须进入统一 UI state。
@@ -68,7 +68,7 @@
   `VoiceInputRepository` 抽象隔离。
 - UI 层已不再直接引用 `data.Languages`、`data.ModelOptions`；OCR 权限、相册 launcher
   由 Route 处理，OCR 状态转换集中到 `OcrWorkflowController`，图片解码、EXIF 旋转和
-  ML Kit OCR 已封装到 `OcrTextRepository` adapter；仍有 CameraX 预览和较大 Screen
+  Paddle Lite OCR 已封装到 `OcrTextRepository` adapter；仍有 CameraX 预览和较大 Screen
   组件待继续拆分。
 - domain 模型已移除 Android resource id；`Language`、`ModelOption` 和
   `TranslatorRepository` 状态都使用 app/domain 自己的纯 Kotlin 类型。
@@ -96,8 +96,9 @@
 
 - `ModelDownloadService` 和 `AiAssetDownloadService` 已不再把 companion object
   `MutableStateFlow` 作为 UI 状态来源；当前已新增 DataStore 持久化状态 store。
-  Service 非正常销毁时会把活跃下载持久化为 interrupted error；后续仍要补进程被直接杀死后
-  App 下次启动时的 job metadata 审计。
+  Service 非正常销毁时会把活跃下载持久化为 interrupted error；App 初始化时也会审计
+  DataStore 中残留的 downloading 记录并标记为 interrupted error。后续仍要补完整 job
+  metadata、重试次数和真机进程恢复验收。
 - 两套下载 service/notifier 重复实现下载 job、foreground notification、取消动作、
   进度节流和错误展示，后续应收敛为统一 download runtime，再由 model/AI asset
   adapter 提供 job metadata。
@@ -112,16 +113,16 @@
   加载/通知语义仍依赖 App 进程存活。
 - 模型下载完成后由 service 发出 Completed，ViewModel 再加载模型并补发完成通知；
   这个链路仍依赖 App 进程存活。进程死亡或 Activity 不存在时不会恢复“下载完成后加载/提示”的语义。
-- `onSelectModel()` 和 `onClearAllModels()` 只取消模型下载，尚未定义 AI 资源下载、
-  OCR/ASR runtime 和相关通知在清理/切换时的行为。
+- `onSelectModel()` 会取消当前模型下载、停止 ASR runtime，但保留独立的 ASR/OCR
+  资源下载；`onClearAllModels()` 会取消模型下载、AI 资源下载和 ASR runtime。
+  后续仍要补对应 notification action instrumentation 和真机验收。
 - 还缺少下载恢复、通知动作、通知权限拒绝、前台服务被系统重启、
   recent task 划掉后的自动化或手动验收用例。
 
 ### OCR
 
 - `AppContainer` 已从 `MlKitOcrTextRepository` 切到 `PaddleLiteOcrTextRepository`；
-  生产入口不再继续创建 ML Kit OCR adapter。ML Kit 依赖和旧 adapter 代码暂时保留，等
-  PaddleOCR det/rec pipeline 可用后再清理。
+  生产入口不再继续创建 ML Kit OCR adapter。ML Kit 依赖和旧 adapter 代码已删除。
 - `AiAsset.OcrPpOcrV5Mobile` 已配置官方 Paddle Lite demo 资源来源，下载器支持
   tar.gz 解包并提取 `PP-OCRv5_mobile_det.nb`、`PP-OCRv5_mobile_rec.nb`、
   `ppocr_keys_ocrv5.txt`。
@@ -295,7 +296,7 @@ DI 默认决策：
   OCR 权限、相册 launcher 和图片处理已迁出 Screen，后续继续把 OCR 处理链路下沉到 use case/data source。
 - 图片 URI 解码、EXIF 旋转、OCR 调用已从 `TranslatorScreen` 移到
   `OcrTextRepository` adapter；OCR flow 状态转换已移到 `OcrWorkflowController`。
-  当前 adapter 实现仍是 ML Kit，后续替换 PaddleOCR 时优先替换该 adapter。
+  当前 production adapter 已切到 Paddle Lite/PaddleOCR，仍缺 det 多框 pipeline。
 - 为关键 Composable 增加 preview parameter provider 和稳定假数据。
 - 已删除不必要的 `configChanges`，通过 `MainActivityConfigurationTest` 验证 Activity
   重建后输入状态保留；后续再引入 SavedStateHandle 覆盖进程死亡恢复。
@@ -313,13 +314,15 @@ DI 默认决策：
   - 通知完成必须触发 repository refresh/load，并让 UI 进入 Ready/Loading/Error。
   - 通知失败必须暴露 typed error，UI 显示明确重试入口。
   - 失败通知已提供直接重试动作；后续需要补 action instrumentation 覆盖。
-  - 切换模型或清理资源时必须取消相关通知和下载 job。
+  - 切换模型会取消模型下载并停止 ASR runtime；清理模型会取消模型下载、AI 资源下载
+    和 ASR runtime。后续补真机通知动作验证。
 - 评估并落地 Google 推荐的用户发起数据传输方案：
   - Android 14+ 优先考虑 User-Initiated Data Transfer job。
   - 需要即时前台可见和兼容旧系统时保留 Foreground Service fallback。
 - 下载状态模型已从 Service 内部类型迁到 domain 层，并已移除 service 静态状态流；
   当前通过 DataStore 持久化基础下载状态，service 异常销毁会记录 interrupted error；
-  后续还需补 job metadata、速度、重试次数和进程被直接杀死后的启动恢复策略。
+  App 初始化会把上次进程直接结束后残留的 downloading 记录审计为 interrupted error；
+  后续还需补 job metadata、速度、重试次数和更完整的启动恢复策略。
 - 下载进度、速度、剩余大小、错误原因使用统一 domain model，再映射到 UI 和 notification。
 - 通知 adapter 只负责平台渲染：
   - Android 16+ 使用 `Notification.ProgressStyle` 和实时更新。
@@ -335,8 +338,8 @@ DI 默认决策：
 - **当前第二优先级：完成真实 PaddleOCR runtime，而不是只保留 ML Kit adapter。**
 - CameraX 绑定改为 lifecycle-aware、state-driven，镜头切换必须触发重新绑定。
 - OCR 处理链路拆成 `DecodeImageUseCase`、`RecognizeTextUseCase`、`ApplyOcrTextUseCase`。
-- OCR runtime 已有 `OcrTextRepository` adapter 边界，当前实现为 ML Kit；后续切换为
-  PaddleOCR PP-OCRv5 时保持 Route/UI 不变。
+- OCR runtime 已有 `OcrTextRepository` adapter 边界，当前 production 实现为
+  Paddle Lite/PaddleOCR，后续补齐 det 多框 pipeline 时保持 Route/UI 不变。
 - OCR 引擎从 ML Kit 切换为 PaddleOCR PP-OCRv5 mobile：
   - 使用 `PP-OCRv5_mobile_det` 和 `PP-OCRv5_mobile_rec`。
   - 使用 `ppocr_keys_ocrv5.txt` 字典。
@@ -419,8 +422,8 @@ DI 默认决策：
 - ASR 资源下载和 runtime 启停已拆开：
   - 资源状态仍由 `AiAssetRepository` lazy 检查和下载。
   - 语音 runtime 通过 `VoiceInputRepository` lazy start/stop。
-  - 当前生产实现 `SherpaOnnxVoiceInputRepository` 是显式未接入占位，返回 UI 可见错误；
-    后续在该 adapter 内接入 sherpa-onnx streaming runtime。
+  - 当前生产实现 `SherpaOnnxVoiceInputRepository` 已创建 sherpa-onnx streaming
+    recognizer 并通过 `AudioRecord` 采集音频。
 - ASR 使用 sherpa-onnx streaming Zipformer：
   - 第一版模型为 `sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20`。
   - 支持中英语音输入，输出 partial/final result。
@@ -436,7 +439,8 @@ DI 默认决策：
   - final result 固化输入框，并在实时翻译开启时触发输出。
   - 通知/后台/切屏不应破坏正在进行的资源下载。
   - sherpa runtime 初始化失败、麦克风权限拒绝、音频采集失败必须进入 typed error。
-  - 当前已覆盖缺模型、缺 native runtime、权限拒绝的错误状态；音频采集和 decode 错误待接入后补。
+  - 当前已覆盖缺模型、缺 native runtime、权限拒绝和 session 启动失败的错误状态；
+    音频采集过程中的运行时错误仍需扩展为 typed event 或 Flow。
 - 录音链路使用 `AudioRecord` adapter：
   - 采集 16 kHz mono PCM。
   - UI 通过麦克风 icon button 触发。

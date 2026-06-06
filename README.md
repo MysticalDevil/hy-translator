@@ -16,17 +16,18 @@ Working in the debug build:
 - Android 16+ `Notification.ProgressStyle` when available, standard
   progress fallback on older supported systems.
 - Live text translation toggle.
-- OCR entry from camera/gallery through the current ML Kit adapter.
+- OCR entry from camera/gallery through the Paddle Lite/PaddleOCR adapter.
 - ASR/OCR AI asset status and lazy download entry points.
 - Activity recreation support without `android:configChanges`.
 
 Not finished yet:
 
-- ASR runtime is not integrated. `VoiceInputRepository` exists and the
-  current `SherpaOnnxVoiceInputRepository` returns a visible placeholder
-  error until sherpa-onnx streaming Zipformer is wired in.
-- OCR runtime is still ML Kit. `OcrTextRepository` exists so PP-OCRv5
-  mobile can replace the current adapter without changing Route/UI code.
+- ASR runtime is wired through `SherpaOnnxVoiceInputRepository`, `AudioRecord`,
+  and sherpa-onnx streaming Zipformer. Device smoke coverage with real model
+  assets is still pending.
+- OCR production entry is wired through `PaddleLiteOcrTextRepository`.
+  The remaining OCR work is the full PP-OCRv5 detection plus multi-line
+  recognition pipeline and real-device smoke coverage.
 - Download progress is modeled in domain types, but service progress is
   still exposed from a service-level flow. Persistent resumable progress
   state remains planned.
@@ -140,7 +141,7 @@ app/src/main/java/org/devil/hytranslator/
       ModelRepositoryImpl.kt
       TranslatorRepositoryImpl.kt
       AiAssetRepositoryImpl.kt
-      MlKitOcrTextRepository.kt
+      PaddleLiteOcrTextRepository.kt
       SherpaOnnxVoiceInputRepository.kt
   domain/
     model/
