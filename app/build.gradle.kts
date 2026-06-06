@@ -55,6 +55,11 @@ android {
                 .asFile
                 .absolutePath,
         )
+        jniLibs.directories.add(
+            rootProject.layout.projectDirectory.dir("third_party/paddle-lite-android/jniLibs")
+                .asFile
+                .absolutePath,
+        )
       }
     }
 }
@@ -88,8 +93,41 @@ tasks.register("verifySherpaOnnxRuntime") {
     }
 }
 
+tasks.register("verifyPaddleLiteRuntime") {
+    group = "verification"
+    description = "Checks that the local Paddle Lite Android runtime is installed."
+
+    val runtimeDir = rootProject.layout.projectDirectory.dir("third_party/paddle-lite-android")
+    val requiredFiles = listOf(
+        "PaddlePredictor.jar",
+        "jniLibs/arm64-v8a/libpaddle_lite_jni.so",
+        "jniLibs/arm64-v8a/libc++_shared.so",
+    )
+
+    inputs.dir(runtimeDir).optional()
+
+    doLast {
+        val missing = requiredFiles.mapNotNull { relativePath ->
+            val file = runtimeDir.file(relativePath).asFile
+            if (file.isFile) null else file
+        }
+        check(missing.isEmpty()) {
+            "Missing Paddle Lite runtime files:\n" +
+                missing.joinToString(separator = "\n") { " - ${it.path}" } +
+                "\nRun scripts/setup-paddle-lite-android.sh"
+        }
+    }
+}
+
 dependencies {
   implementation(project(":lib"))
+
+  val paddlePredictorJar = rootProject.layout.projectDirectory
+      .file("third_party/paddle-lite-android/PaddlePredictor.jar")
+      .asFile
+  if (paddlePredictorJar.isFile) {
+      implementation(files(paddlePredictorJar))
+  }
 
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)

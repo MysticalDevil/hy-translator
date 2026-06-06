@@ -122,6 +122,10 @@
   tar.gz 解包并提取 `PP-OCRv5_mobile_det.nb`、`PP-OCRv5_mobile_rec.nb`、
   `ppocr_keys_ocrv5.txt`。后续仍要接 PaddleOCR runtime，而不是继续使用 ML Kit。
 - Gradle 依赖仍包含 ML Kit OCR，尚无 PaddleOCR/Paddle Lite runtime 或 native libs。
+- 已新增官方 Paddle Lite Android runtime 安装脚本和 Gradle 本地打包入口；
+  运行 `scripts/setup-paddle-lite-android.sh` 后可用 `:app:verifyPaddleLiteRuntime`
+  验证 `PaddlePredictor.jar`、`libpaddle_lite_jni.so` 和 `libc++_shared.so`。
+  后续还要把 `MlKitOcrTextRepository` 替换为 Paddle Lite predictor adapter。
 - OCR adapter 边界已有，但还缺 PaddleOCR 初始化、模型文件校验、bitmap 预处理、
   det/rec pipeline、typed error 和真机 smoke 验证。
 
@@ -331,6 +335,8 @@ DI 默认决策：
   - 第一版只启用 det + rec，不启用 unwarp 和方向分类模型。
   - 模型作为首次使用资源下载，不打包进 APK。
   - 已配置官方 Paddle Lite demo tar.gz 资源，并在下载器中支持单文件解包。
+  - 已新增 Paddle Lite Android runtime 本地安装/验证入口，产物位于 ignored
+    `third_party/paddle-lite-android`。
 - OCR 可用性验收：
   - 未下载 OCR 资源时点击 OCR 只触发资源下载，不进入不可用 camera/gallery 流。
   - OCR 资源下载完成后自动 refresh，用户再次点击 OCR 可进入相机/相册。
