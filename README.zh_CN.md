@@ -1,149 +1,178 @@
 # Hy 翻译器
 
-基于 [llama.cpp](https://github.com/ggerganov/llama.cpp) 和 [腾讯 Hy-MT2-1.8B](https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF) 模型的离线翻译 Android 应用。支持 35 种语言互译，所有计算均在本地完成，无需网络即可翻译。
+Hy Translator 是一个 Android 离线翻译应用，底层使用 `llama.cpp`
+和腾讯 Hy-MT2-1.8B GGUF 模型。当前项目正在标准化为教学用 Android
+示例：薄 Activity、Compose UDF、纯 domain 模型、repository 边界、前台下载通知，
+以及隔离的 native/OCR/ASR adapter。
 
-## 功能
+## 当前状态
 
-- **35 种语言** — 双向翻译，支持自动语言检测
-- **大模型驱动** — 使用 Hy-MT2-1.8B 大语言模型，通过 llama.cpp 推理
-- **完全离线** — 翻译全程本地运算，无云端依赖
-- **OCR 输入** — 通过 ML Kit 拍照或从相册提取文字
-- **多档模型** — 3 种量化级别可选（Q4_K_M、Q6_K、Q8_0）
-- **Material You** — 动态取色主题，随壁纸自动适配
+Debug 版当前可用：
 
-## 快速开始
+- 离线翻译主界面，支持源语言/目标语言选择。
+- GGUF 模型选择和按需下载。
+- 前台模型下载服务和进度通知。
+- Android 16+ 使用 `Notification.ProgressStyle`，旧系统使用标准进度通知。
+- 实时文本翻译开关。
+- OCR 可从相机/相册进入，当前 runtime adapter 仍是 ML Kit。
+- ASR/OCR AI 资源状态展示和按需下载入口。
+- 已移除 `android:configChanges`，支持 Activity 重建后的输入状态保留。
 
-### 环境要求
+尚未完成：
 
-- Android 13 (API 33) 或更高版本
-- 约 2 GB 可用存储用于模型下载
-- 相机权限（可选，用于 OCR）
+- ASR runtime 尚未接入。`VoiceInputRepository` 已存在，当前
+  `SherpaOnnxVoiceInputRepository` 会返回用户可见的占位错误，后续在这里接入
+  sherpa-onnx streaming Zipformer。
+- OCR runtime 尚未切换到 PaddleOCR。`OcrTextRepository` 已存在，后续 PP-OCRv5
+  mobile 可以替换当前 ML Kit adapter，而不改变 Route/UI。
+- 下载状态已经迁到 domain 类型，但 service 进度仍通过 service 级 flow 暴露；
+  持久化、可恢复的进度流仍在计划中。
+- Hilt 仍在计划中。当前使用 `HyTranslatorApplication` 和手写
+  `AppContainer` 作为迁移台阶。
 
-### 安装与使用
+完整标准化计划见 [PLAN.md](PLAN.md)。
 
-1. 从 [Releases](https://github.com/MysticalDevil/hy-translator/releases) 下载最新 APK
-2. 安装并启动
-3. 选择模型版本（推荐 Q4_K_M，1.1 GB）
-4. 下载模型
-5. 开始翻译
+## 环境要求
 
-### 使用指南
+- Android Studio 或 Android Gradle 工具链。
+- Android SDK，compile platform 为 API 37。
+- Android 13 (API 33) 或更新设备。
+- 首次下载模型和 AI 资源时需要网络。
+- 设备需有足够空间保存所选翻译模型。
 
-1. 在顶部语言栏选择源语言和目标语言
-2. 输入或粘贴文本，或点击相机按钮进行 OCR 识别
-3. 点击**翻译**
-4. 使用复制按钮复制翻译结果
-
-## 架构
-
-```
-app/                          # 主应用模块
-├── MainActivity.kt           # 单 Activity，薄胶合层（~90 行）
-├── domain/
-│   ├── model/                # 纯 Kotlin 领域模型
-│   │   ├── Language.kt       # 语言数据（代码、名称、英文名）
-│   │   ├── ModelOption.kt    # 模型变体定义
-│   │   ├── ModelStatus.kt    # 模型生命周期状态（sealed class）
-│   │   └── DownloadProgress.kt  # 下载进度事件
-│   └── repository/           # 仓库接口（抽象层）
-│       ├── TranslatorRepository.kt
-│       ├── ModelRepository.kt
-│       └── LanguageRepository.kt
-├── data/
-│   ├── Languages.kt          # 35 种语言定义
-│   ├── Models.kt             # 模型目录 + 内存感知推荐
-│   └── repository/           # 仓库实现
-│       ├── TranslatorRepositoryImpl.kt
-│       ├── ModelRepositoryImpl.kt
-│       └── LanguageRepositoryImpl.kt
-├── service/
-│   ├── TranslatorEngine.kt   # 翻译封装（Prompt 构建）
-│   ├── ModelDownloader.kt    # GGUF 模型下载（OkHttp + 断点续传）
-│   └── OcrEngine.kt          # ML Kit OCR 封装
-├── ui/
-│   ├── TranslatorScreen.kt   # 主界面（语言栏、输入区、输出卡）
-│   ├── TranslatorViewModel.kt  # 状态管理 + 业务编排
-│   ├── ModelPickerDialog.kt  # 模型选择弹窗
-│   ├── CameraCapture.kt      # CameraX 全屏拍照
-│   ├── OcrBottomSheet.kt     # OCR 流程底部弹窗
-│   └── OcrFlow.kt            # OCR 状态机
-└── theme/
-    ├── Theme.kt              # Material 3 主题（Monet 动态取色）
-    └── Type.kt               # 字体排版定义
-
-lib/                          # Native 推理引擎库
-├── src/main/cpp/
-│   ├── CMakeLists.txt        # CMake 构建 + 16KB 页对齐
-│   └── ai_chat.cpp           # llama.cpp JNI 桥接
-└── src/main/java/com/arm/aichat/
-    └── InferenceEngine.kt    # llama.cpp 推理 Kotlin 封装
-
-llama.cpp/                    # Git 子模块
-```
-
-### 架构模式
-
-```
-presentation (ui/) ──→ domain/ ←── data/
-                            ↑
-                        core（无依赖）
-```
-
-- **domain** — Repository 接口，纯 Kotlin 模型，零 Android 依赖
-- **data** — Repository 实现，封装 TranslatorEngine/ModelDownloader
-- **presentation** — ViewModel + Compose UI，通过 StateFlow 读取状态
-
-### 核心依赖
-
-| 库 | 用途 |
-|----|------|
-| [llama.cpp](https://github.com/ggerganov/llama.cpp) | LLM 推理引擎 |
-| [Compose](https://developer.android.com/compose) | UI 框架 |
-| [CameraX](https://developer.android.com/camera) | 相机拍照 |
-| [ML Kit](https://developers.google.com/ml-kit) | OCR 文字识别 |
-| [OkHttp](https://square.github.io/okhttp/) | 模型下载 |
-
-### 数据流
-
-```
-用户输入 → TranslatorScreen → ViewModel (StateFlow)
-                                    │
-                    ┌───────────────┼───────────────┐
-                    ▼               ▼               ▼
-           TranslatorRepository  ModelRepository  LanguageRepository
-                    │               │               │
-                    ▼               ▼               ▼
-            TranslatorEngine.kt  ModelDownloader  Languages.kt
-                    │               │
-                    ▼               ▼
-            llama.cpp (Native)   HuggingFace
-```
-
-## 开发
-
-### 构建
+当前开发机使用的 Android SDK 路径：
 
 ```bash
-# 克隆仓库及子模块
-git clone --recurse-submodules https://github.com/MysticalDevil/hy-translator.git
-cd hy-translator
-
-# 构建 Debug APK
-./gradlew assembleDebug
+/home/omega/Android/Sdk
 ```
 
-### 代码质量
+## 构建和运行
+
+构建 debug APK：
 
 ```bash
-# 运行 Lint 检查
-./gradlew :app:lint
-
-# 运行测试
-./gradlew :app:test
+./gradlew :app:assembleDebug
 ```
+
+安装到已连接设备：
+
+```bash
+/home/omega/Android/Sdk/platform-tools/adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+启动：
+
+```bash
+/home/omega/Android/Sdk/platform-tools/adb shell am start -n org.devil.hytranslator/.MainActivity
+```
+
+## 验证
+
+当前标准化过程中使用的本地最小质量门：
+
+```bash
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :app:testDebugUnitTest
+```
+
+真机 UI/instrumented 测试：
+
+```bash
+./gradlew :app:connectedDebugAndroidTest
+```
+
+Native 模块构建/测试：
+
+```bash
+./gradlew :lib:assembleDebug :lib:testDebugUnitTest
+```
+
+除非明确要求，当前流程不运行 Markdown lint。
+
+## 架构阅读入口
+
+把这个项目当教学材料阅读时，建议从这里开始：
+
+1. `app/src/main/java/org/devil/hytranslator/MainActivity.kt`
+   只负责 edge-to-edge、主题和承载 `TranslatorRoute`。
+2. `HyTranslatorApplication` 创建 `DefaultAppContainer`。
+   这是引入 Hilt 前的临时 DI 入口。
+3. `TranslatorRoute` lifecycle-aware 收集 UI state，持有 Android 权限 launcher，
+   并把平台回调转成 UI 事件。
+4. `TranslatorScreen` 基本是无状态 Compose screen，只接收 state 和 callbacks，
+   不创建 repository，也不访问 data singleton。
+5. `TranslatorViewModel` 暴露 `TranslatorUiState`，消费 `TranslatorEvent`。
+6. domain 模型和 repository contract 位于
+   `app/src/main/java/org/devil/hytranslator/domain`。
+7. Android 和外部实现细节放在 `data`、`service`、`platform` 和 `lib`。
+
+### 依赖方向
+
+```text
+MainActivity
+  -> TranslatorRoute
+    -> TranslatorViewModel
+      -> domain repository interfaces
+        <- data/service/platform implementations
+```
+
+当前通过代码审查和搜索检查维持的规则：
+
+- `domain` 不依赖 Android resource、Android framework class 或
+  `InferenceEngine.State`。
+- UI 不直接读取 `data.Languages` 或 `data.ModelOptions`。
+- URL 放在 resources 中，不硬编码到 Kotlin。
+- OCR 和 ASR runtime 是 adapter，不是 UI 实现细节。
+
+## 重要包结构
+
+```text
+app/src/main/java/org/devil/hytranslator/
+  data/
+    repository/
+      ModelRepositoryImpl.kt
+      TranslatorRepositoryImpl.kt
+      AiAssetRepositoryImpl.kt
+      MlKitOcrTextRepository.kt
+      SherpaOnnxVoiceInputRepository.kt
+  domain/
+    model/
+    repository/
+  platform/
+    ocr/OcrTextRepository.kt
+  service/
+    ModelDownloadService.kt
+    AiAssetDownloadService.kt
+    ModelDownloadNotifier.kt
+    AiAssetDownloadNotifier.kt
+  ui/
+    TranslatorRoute.kt
+    TranslatorScreen.kt
+    TranslatorViewModel.kt
+    OcrWorkflowController.kt
+```
+
+Native 推理隔离在 `lib/`。App 会先把 native inference state 映射成 app 自己的
+domain state，再暴露给 UI。
+
+## Native 构建说明
+
+`:lib` 模块支持 llama.cpp 预编译缓存：
+
+- 本地生成产物位于 `lib/src/main/prebuilt/<abi>/`。
+- 如果必需 native 库存在，CMake 会直接链接这些 prebuilt artifact。
+- 如果产物缺失，构建路径可以触发 llama.cpp 编译。
+- prebuilt cache 是本地构建产物，不是 app/domain contract。
+
+## 架构决策
+
+ADR 位于 [docs/adr](docs/adr)：
+
+- [ADR 0001：保持 Domain 纯净](docs/adr/0001-keep-domain-pure.md)
+- [ADR 0002：先使用 AppContainer，再迁移 Hilt](docs/adr/0002-use-appcontainer-before-hilt.md)
+- [ADR 0003：前台下载和 Domain 进度模型](docs/adr/0003-foreground-downloads-domain-progress.md)
+- [ADR 0004：Native 预编译缓存](docs/adr/0004-native-prebuilt-cache.md)
 
 ## 许可证
 
-MIT License — 详见 [LICENSE](LICENSE)。
-
-本项目使用了 [llama.cpp](https://github.com/ggerganov/llama.cpp)（MIT）和 [Hy-MT2-1.8B](https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF)（Apache 2.0）。
+MIT License。本项目使用 `llama.cpp` 和腾讯 Hy-MT2-1.8B GGUF 模型产物，
+请同时遵守它们各自的许可证。

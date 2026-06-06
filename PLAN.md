@@ -40,7 +40,8 @@
   备份排除规则保留用于历史安装。
 - 下载 Service 暴露的状态类型已迁到 domain 层，ViewModel 不再依赖 Service 内部
   `State` 类型；但进度仍通过 companion object 静态 `StateFlow` 暴露，后续需要持久化进度流。
-- `app` 基本没有单元测试、Compose UI 测试或 instrumented 测试；`:lib` 当前测试仍是占位示例。
+- `app` 已有 ViewModel 单元测试、OCR workflow 单元测试、Compose UI 测试和
+  Activity 重建 instrumented 测试；`:lib` 当前测试仍偏 smoke/基础覆盖，后续需继续增强。
 - Manifest 已移除 `MainActivity` 的 `configChanges`，并新增配置变化重建测试；
   后续继续覆盖更多 UI 状态和进程死亡恢复。
 
@@ -240,12 +241,12 @@ DI 默认决策：
 
 ### Phase 9：教学文档
 
-- 在 README 中增加架构图、模块职责和运行命令。
-- 为关键决策写 ADR：
-  - 为什么用 Hilt。
+- README 已增加当前状态、架构阅读入口、模块职责、运行命令和验证命令。
+- 已为关键决策写 ADR：
   - 为什么 domain 不依赖 Android resource/native state。
-  - 为什么下载使用 UIDT job + FGS fallback。
-  - 为什么 native 预编译缓存默认不提交。
+  - 为什么先使用 `AppContainer`，后续再迁移 Hilt。
+  - 为什么当前下载使用 FGS + domain progress，并保留 UIDT job 评估。
+  - 为什么 native 预编译缓存默认不作为 app contract。
 - 增加“从代码读架构”的教学入口：
   - `MainActivity` 到 `TranslatorRoute`。
   - `TranslatorViewModel` 到 use case。
@@ -318,7 +319,7 @@ DI 默认决策：
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-Markdown 文档变更后运行：
+Markdown 文档变更后可按需运行（当前按用户要求不自动运行）：
 
 ```bash
 rumdl fmt PLAN.md

@@ -1,149 +1,188 @@
 # Hy Translator
 
-Offline translation app for Android, powered by [llama.cpp](https://github.com/ggerganov/llama.cpp) and the [Tencent Hy-MT2-1.8B](https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF) model. Supports 35 languages with full privacy — everything runs locally on your device, no network required for translation.
+Hy Translator is an Android offline translation app powered by
+`llama.cpp` and Tencent Hy-MT2-1.8B GGUF models. The project is being
+standardized as a teaching-oriented Android app: thin Activity, Compose
+UDF, pure domain models, repository boundaries, foreground download
+notifications, and isolated native/OCR/ASR adapters.
 
-## Features
+## Current Status
 
-- **35 languages** — bidirectional translation with auto language detection
-- **AI-powered** — uses Hy-MT2-1.8B large language model via llama.cpp
-- **100% offline** — all translation runs locally, no cloud dependency
-- **OCR input** — capture text from camera or gallery via ML Kit
-- **Model variants** — choose from 3 quantization levels (Q4_K_M, Q6_K, Q8_0)
-- **Material You** — dynamic color theming that adapts to your wallpaper
+Working in the debug build:
 
-## Getting Started
+- Offline translation UI with source/target language selection.
+- GGUF model selection and lazy model download.
+- Foreground model download service with progress notifications.
+- Android 16+ `Notification.ProgressStyle` when available, standard
+  progress fallback on older supported systems.
+- Live text translation toggle.
+- OCR entry from camera/gallery through the current ML Kit adapter.
+- ASR/OCR AI asset status and lazy download entry points.
+- Activity recreation support without `android:configChanges`.
 
-### Prerequisites
+Not finished yet:
 
-- Android 13 (API 33) or higher
-- ~2 GB free storage for model download
-- Camera permission (optional, for OCR)
+- ASR runtime is not integrated. `VoiceInputRepository` exists and the
+  current `SherpaOnnxVoiceInputRepository` returns a visible placeholder
+  error until sherpa-onnx streaming Zipformer is wired in.
+- OCR runtime is still ML Kit. `OcrTextRepository` exists so PP-OCRv5
+  mobile can replace the current adapter without changing Route/UI code.
+- Download progress is modeled in domain types, but service progress is
+  still exposed from a service-level flow. Persistent resumable progress
+  state remains planned.
+- Hilt is planned. The current code uses `HyTranslatorApplication` and a
+  hand-written `AppContainer` as a migration step.
 
-### Download & Install
+See [PLAN.md](PLAN.md) for the full standardization plan.
 
-1. Download the latest APK from [Releases](https://github.com/MysticalDevil/hy-translator/releases)
-2. Install and launch
-3. Select a model variant (Q4_K_M recommended for most devices)
-4. Download the model (~1.1 GB)
-5. Start translating
+## Requirements
 
-### Quick Start
+- Android Studio or Android Gradle tooling.
+- Android SDK with API 37 compile platform.
+- Android 13 (API 33) or newer device.
+- Network access for first-time model and AI asset downloads.
+- Enough storage for the selected translation model.
 
-1. Choose source and target languages from the top bar
-2. Type or paste text, or use the camera button for OCR
-3. Tap **Translate**
-4. Copy the result with the copy button
-
-## Architecture
-
-```
-app/                          # Main application module
-├── MainActivity.kt           # Single Activity, thin wiring (~90 lines)
-├── domain/
-│   ├── model/                # Pure Kotlin domain models
-│   │   ├── Language.kt       # Language data (code, name, englishName)
-│   │   ├── ModelOption.kt    # Model variant definition
-│   │   ├── ModelStatus.kt    # Model lifecycle states (sealed class)
-│   │   └── DownloadProgress.kt  # Download progress events
-│   └── repository/           # Repository interfaces (abstractions)
-│       ├── TranslatorRepository.kt
-│       ├── ModelRepository.kt
-│       └── LanguageRepository.kt
-├── data/
-│   ├── Languages.kt          # Language catalog (35 languages)
-│   ├── Models.kt             # Model catalog + memory-aware recommendation
-│   └── repository/           # Repository implementations
-│       ├── TranslatorRepositoryImpl.kt
-│       ├── ModelRepositoryImpl.kt
-│       └── LanguageRepositoryImpl.kt
-├── service/
-│   ├── TranslatorEngine.kt   # Translation wrapper (prompt building)
-│   ├── ModelDownloader.kt    # GGUF model download (OkHttp + resume)
-│   └── OcrEngine.kt          # ML Kit OCR wrapper
-├── ui/
-│   ├── TranslatorScreen.kt   # Main UI (LanguageBar, InputArea, OutputCard)
-│   ├── TranslatorViewModel.kt  # State management + business orchestration
-│   ├── ModelPickerDialog.kt  # Model selection dialog
-│   ├── CameraCapture.kt      # CameraX full-screen capture
-│   ├── OcrBottomSheet.kt     # OCR flow bottom sheet
-│   └── OcrFlow.kt            # OCR state machine
-└── theme/
-    ├── Theme.kt              # Material 3 theme (Monet dynamic color)
-    └── Type.kt               # Typography definitions
-
-lib/                          # Native inference library
-├── src/main/cpp/
-│   ├── CMakeLists.txt        # CMake build + 16KB page alignment
-│   └── ai_chat.cpp           # JNI bridge to llama.cpp
-└── src/main/java/com/arm/aichat/
-    └── InferenceEngine.kt    # Kotlin wrapper for llama.cpp inference
-
-llama.cpp/                    # Git submodule
-```
-
-### Architecture Pattern
-
-```
-presentation (ui/) ──→ domain/ ←── data/
-                            ↑
-                        core (no deps)
-```
-
-- **domain** — Repository interfaces, pure Kotlin models, zero Android deps
-- **data** — Repository implementations, wraps TranslatorEngine/ModelDownloader
-- **presentation** — ViewModel + Compose UI, reads state via StateFlow
-
-### Key Dependencies
-
-| Library | Purpose |
-|---------|---------|
-| [llama.cpp](https://github.com/ggerganov/llama.cpp) | LLM inference engine |
-| [Compose](https://developer.android.com/compose) | UI framework |
-| [CameraX](https://developer.android.com/camera) | Camera capture |
-| [ML Kit](https://developers.google.com/ml-kit) | OCR text recognition |
-| [OkHttp](https://square.github.io/okhttp/) | Model download |
-
-### Data Flow
-
-```
-User Input → TranslatorScreen → ViewModel (StateFlow)
-                                    │
-                    ┌───────────────┼───────────────┐
-                    ▼               ▼               ▼
-           TranslatorRepository  ModelRepository  LanguageRepository
-                    │               │               │
-                    ▼               ▼               ▼
-            TranslatorEngine.kt  ModelDownloader  Languages.kt
-                    │               │
-                    ▼               ▼
-            llama.cpp (native)  HuggingFace
-```
-
-## Development
-
-### Build
+The Android SDK on the development machine used for this project is:
 
 ```bash
-# Clone with submodules
-git clone --recurse-submodules https://github.com/MysticalDevil/hy-translator.git
-cd hy-translator
-
-# Build debug APK
-./gradlew assembleDebug
+/home/omega/Android/Sdk
 ```
 
-### Code Quality
+## Build And Run
+
+Build the debug APK:
 
 ```bash
-# Run lint
-./gradlew :app:lint
-
-# Run tests
-./gradlew :app:test
+./gradlew :app:assembleDebug
 ```
+
+Install on the connected device:
+
+```bash
+/home/omega/Android/Sdk/platform-tools/adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Launch:
+
+```bash
+/home/omega/Android/Sdk/platform-tools/adb shell am start -n org.devil.hytranslator/.MainActivity
+```
+
+## Verification
+
+Small local gate used during standardization:
+
+```bash
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :app:testDebugUnitTest
+```
+
+Device UI/instrumented gate:
+
+```bash
+./gradlew :app:connectedDebugAndroidTest
+```
+
+Native module smoke/build gate:
+
+```bash
+./gradlew :lib:assembleDebug :lib:testDebugUnitTest
+```
+
+Markdown lint is intentionally not run in the current workflow unless
+explicitly requested.
+
+## Architecture Reading Guide
+
+Start here when reading the app as teaching material:
+
+1. `app/src/main/java/org/devil/hytranslator/MainActivity.kt`
+   sets edge-to-edge UI, theme, and hosts `TranslatorRoute`.
+2. `HyTranslatorApplication` creates `DefaultAppContainer`.
+   This is a temporary DI entry point before Hilt.
+3. `TranslatorRoute` collects lifecycle-aware UI state, owns Android
+   permission launchers, and wires platform callbacks into UI events.
+4. `TranslatorScreen` is a mostly stateless Compose screen. It receives
+   state and callbacks instead of constructing repositories or accessing
+   data singletons.
+5. `TranslatorViewModel` exposes `TranslatorUiState` and consumes
+   `TranslatorEvent`.
+6. Domain models and repository contracts live under
+   `app/src/main/java/org/devil/hytranslator/domain`.
+7. Android and external implementation details live in `data`,
+   `service`, `platform`, and `lib`.
+
+### Dependency Direction
+
+```text
+MainActivity
+  -> TranslatorRoute
+    -> TranslatorViewModel
+      -> domain repository interfaces
+        <- data/service/platform implementations
+```
+
+Rules currently enforced by code review and search checks:
+
+- `domain` does not depend on Android resources, Android framework
+  classes, or `InferenceEngine.State`.
+- UI does not directly read `data.Languages` or `data.ModelOptions`.
+- URLs are stored in resources, not hardcoded in Kotlin.
+- OCR and ASR runtime entry points are adapters, not UI implementation
+  details.
+
+## Important Packages
+
+```text
+app/src/main/java/org/devil/hytranslator/
+  data/
+    repository/
+      ModelRepositoryImpl.kt
+      TranslatorRepositoryImpl.kt
+      AiAssetRepositoryImpl.kt
+      MlKitOcrTextRepository.kt
+      SherpaOnnxVoiceInputRepository.kt
+  domain/
+    model/
+    repository/
+  platform/
+    ocr/OcrTextRepository.kt
+  service/
+    ModelDownloadService.kt
+    AiAssetDownloadService.kt
+    ModelDownloadNotifier.kt
+    AiAssetDownloadNotifier.kt
+  ui/
+    TranslatorRoute.kt
+    TranslatorScreen.kt
+    TranslatorViewModel.kt
+    OcrWorkflowController.kt
+```
+
+Native inference is isolated in `lib/`. The app maps native inference
+state into app-owned domain state before exposing it to UI.
+
+## Native Build Notes
+
+The `:lib` module supports a prebuilt llama.cpp cache:
+
+- Local generated artifacts live under `lib/src/main/prebuilt/<abi>/`.
+- If required native libraries exist, CMake links against the prebuilt
+  artifacts.
+- If they are missing, the build path can trigger llama.cpp compilation.
+- The prebuilt cache is local build output and is not the app/domain
+  contract.
+
+## Design Decisions
+
+See the ADRs in [docs/adr](docs/adr):
+
+- [ADR 0001: Keep Domain Pure](docs/adr/0001-keep-domain-pure.md)
+- [ADR 0002: Use AppContainer Before Hilt](docs/adr/0002-use-appcontainer-before-hilt.md)
+- [ADR 0003: Foreground Downloads With Domain Progress](docs/adr/0003-foreground-downloads-domain-progress.md)
+- [ADR 0004: Native Prebuilt Cache](docs/adr/0004-native-prebuilt-cache.md)
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
-
-This project uses [llama.cpp](https://github.com/ggerganov/llama.cpp) (MIT) and [Hy-MT2-1.8B](https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF) (Apache 2.0).
+MIT License. This project uses `llama.cpp` and Tencent Hy-MT2-1.8B GGUF
+model artifacts under their respective licenses.
