@@ -13,9 +13,11 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.devil.hytranslator.MainDispatcherRule
 import org.devil.hytranslator.domain.model.AiAsset
+import org.devil.hytranslator.domain.model.AiAssetDownloadState
 import org.devil.hytranslator.domain.model.AiAssetState
 import org.devil.hytranslator.domain.model.DownloadProgress
 import org.devil.hytranslator.domain.model.Language
+import org.devil.hytranslator.domain.model.ModelDownloadState
 import org.devil.hytranslator.domain.model.ModelOption
 import org.devil.hytranslator.domain.model.ModelStatus
 import org.devil.hytranslator.domain.model.TranslationEngineState
@@ -25,10 +27,8 @@ import org.devil.hytranslator.domain.repository.LanguageRepository
 import org.devil.hytranslator.domain.repository.ModelRepository
 import org.devil.hytranslator.domain.repository.TranslatorRepository
 import org.devil.hytranslator.service.AiAssetDownloadActions
-import org.devil.hytranslator.service.AiAssetDownloadService
 import org.devil.hytranslator.service.ModelDownloadActions
 import org.devil.hytranslator.service.ModelDownloadNotifications
-import org.devil.hytranslator.service.ModelDownloadService
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -239,7 +239,7 @@ class TranslatorViewModelTest {
         assertEquals(AiAsset.AsrStreamingZipformer, aiAssetDownloadActions.startedAsset)
 
         val progress = DownloadProgress.Downloading(downloaded = 10L, total = 100L)
-        aiAssetDownloadActions.mutableState.value = AiAssetDownloadService.State.Downloading(
+        aiAssetDownloadActions.mutableState.value = AiAssetDownloadState.Downloading(
             asset = AiAsset.AsrStreamingZipformer,
             progress = progress,
         )
@@ -247,7 +247,7 @@ class TranslatorViewModelTest {
 
         assertEquals(AiAssetState.Downloading(progress), viewModel.uiState.value.asrAssetState)
 
-        aiAssetDownloadActions.mutableState.value = AiAssetDownloadService.State.Completed(
+        aiAssetDownloadActions.mutableState.value = AiAssetDownloadState.Completed(
             asset = AiAsset.AsrStreamingZipformer,
             path = "/ai-assets/asr",
         )
@@ -309,7 +309,7 @@ class TranslatorViewModelTest {
         val progress = DownloadProgress.Downloading(downloaded = 10L, total = 100L)
 
         viewModel.initialize()
-        downloadActions.mutableState.value = ModelDownloadService.State.Downloading(
+        downloadActions.mutableState.value = ModelDownloadState.Downloading(
             model = modelRepository.currentModel,
             progress = progress,
         )
@@ -489,10 +489,10 @@ class TranslatorViewModelTest {
     }
 
     private class FakeModelDownloadActions : ModelDownloadActions {
-        val mutableState = MutableStateFlow<ModelDownloadService.State>(
-            ModelDownloadService.State.Idle,
+        val mutableState = MutableStateFlow<ModelDownloadState>(
+            ModelDownloadState.Idle,
         )
-        override val state: StateFlow<ModelDownloadService.State> = mutableState
+        override val state: StateFlow<ModelDownloadState> = mutableState
         var startedModel: ModelOption? = null
             private set
         var cancelled = false
@@ -508,10 +508,10 @@ class TranslatorViewModelTest {
     }
 
     private class FakeAiAssetDownloadActions : AiAssetDownloadActions {
-        val mutableState = MutableStateFlow<AiAssetDownloadService.State>(
-            AiAssetDownloadService.State.Idle,
+        val mutableState = MutableStateFlow<AiAssetDownloadState>(
+            AiAssetDownloadState.Idle,
         )
-        override val state: StateFlow<AiAssetDownloadService.State> = mutableState
+        override val state: StateFlow<AiAssetDownloadState> = mutableState
         var startedAsset: AiAsset? = null
             private set
         var cancelled = false

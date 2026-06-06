@@ -17,8 +17,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.devil.hytranslator.domain.model.AiAsset
+import org.devil.hytranslator.domain.model.AiAssetDownloadState
 import org.devil.hytranslator.domain.model.AiAssetState
 import org.devil.hytranslator.domain.model.Language
+import org.devil.hytranslator.domain.model.ModelDownloadState
 import org.devil.hytranslator.domain.model.ModelOption
 import org.devil.hytranslator.domain.model.ModelStatus
 import org.devil.hytranslator.domain.model.VoiceInputState
@@ -27,10 +29,8 @@ import org.devil.hytranslator.domain.repository.LanguageRepository
 import org.devil.hytranslator.domain.repository.ModelRepository
 import org.devil.hytranslator.domain.repository.TranslatorRepository
 import org.devil.hytranslator.service.AiAssetDownloadActions
-import org.devil.hytranslator.service.AiAssetDownloadService
 import org.devil.hytranslator.service.ModelDownloadActions
 import org.devil.hytranslator.service.ModelDownloadNotifications
-import org.devil.hytranslator.service.ModelDownloadService
 
 class TranslatorViewModel(
     private val translatorRepository: TranslatorRepository,
@@ -291,8 +291,8 @@ class TranslatorViewModel(
         downloadJob = viewModelScope.launch {
             modelDownloadController.state.collect { state ->
                 when (state) {
-                    is ModelDownloadService.State.Idle -> {}
-                    is ModelDownloadService.State.Downloading -> {
+                    is ModelDownloadState.Idle -> {}
+                    is ModelDownloadState.Downloading -> {
                         if (state.model.key == _uiState.value.selectedModel.key) {
                             _uiState.update {
                                 it.copy(
@@ -302,7 +302,7 @@ class TranslatorViewModel(
                             }
                         }
                     }
-                    is ModelDownloadService.State.Completed -> {
+                    is ModelDownloadState.Completed -> {
                         if (
                             state.model.key == _uiState.value.selectedModel.key &&
                             handledCompletedDownloadPath != state.path
@@ -316,7 +316,7 @@ class TranslatorViewModel(
                             )
                         }
                     }
-                    is ModelDownloadService.State.Error -> {
+                    is ModelDownloadState.Error -> {
                         if (state.model.key == _uiState.value.selectedModel.key) {
                             setModelStatus(ModelStatus.Error(state.message))
                         }
@@ -361,18 +361,18 @@ class TranslatorViewModel(
         aiAssetServiceJob = viewModelScope.launch {
             aiAssetDownloadController.state.collect { state ->
                 when (state) {
-                    is AiAssetDownloadService.State.Idle -> {}
-                    is AiAssetDownloadService.State.Downloading -> {
+                    is AiAssetDownloadState.Idle -> {}
+                    is AiAssetDownloadState.Downloading -> {
                         setAiAssetState(
                             asset = state.asset,
                             assetState = AiAssetState.Downloading(state.progress),
                         )
                     }
-                    is AiAssetDownloadService.State.Completed -> {
+                    is AiAssetDownloadState.Completed -> {
                         aiAssetRepository.refresh(state.asset)
                         setAiAssetState(state.asset, AiAssetState.Ready)
                     }
-                    is AiAssetDownloadService.State.Error -> {
+                    is AiAssetDownloadState.Error -> {
                         setAiAssetState(
                             asset = state.asset,
                             assetState = AiAssetState.Error(state.message),

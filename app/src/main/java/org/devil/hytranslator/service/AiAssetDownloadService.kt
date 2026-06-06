@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.devil.hytranslator.data.repository.AiAssetRepositoryImpl
 import org.devil.hytranslator.domain.model.AiAsset
+import org.devil.hytranslator.domain.model.AiAssetDownloadState
 import org.devil.hytranslator.domain.model.DownloadProgress
 
 class AiAssetDownloadService : Service() {
@@ -58,7 +59,7 @@ class AiAssetDownloadService : Service() {
 
     private fun startDownload(asset: AiAsset) {
         downloadJob?.cancel()
-        _state.value = State.Downloading(asset, null)
+        _state.value = AiAssetDownloadState.Downloading(asset, null)
 
         ServiceCompat.startForeground(
             this,
@@ -71,18 +72,18 @@ class AiAssetDownloadService : Service() {
             val repository = AiAssetRepositoryImpl(applicationContext)
             try {
                 repository.download(asset).collect { progress ->
-                    _state.value = State.Downloading(asset, progress)
+                    _state.value = AiAssetDownloadState.Downloading(asset, progress)
                     when (progress) {
                         is DownloadProgress.Started -> updateForeground(asset, progress)
                         is DownloadProgress.Downloading -> updateForeground(asset, progress)
                         is DownloadProgress.Completed -> {
-                            _state.value = State.Completed(asset, progress.path)
+                            _state.value = AiAssetDownloadState.Completed(asset, progress.path)
                             notifier.showComplete(asset)
                             stopForeground(STOP_FOREGROUND_DETACH)
                             stopSelf()
                         }
                         is DownloadProgress.Error -> {
-                            _state.value = State.Error(asset, progress.message)
+                            _state.value = AiAssetDownloadState.Error(asset, progress.message)
                             notifier.showError(asset, progress.message)
                             stopForeground(STOP_FOREGROUND_DETACH)
                             stopSelf()
@@ -93,7 +94,7 @@ class AiAssetDownloadService : Service() {
                 throw e
             } catch (e: Exception) {
                 val message = e.message ?: e.javaClass.simpleName
-                _state.value = State.Error(asset, message)
+                _state.value = AiAssetDownloadState.Error(asset, message)
                 notifier.showError(asset, message)
                 stopForeground(STOP_FOREGROUND_DETACH)
                 stopSelf()
@@ -146,7 +147,7 @@ class AiAssetDownloadService : Service() {
     private fun cancelDownload() {
         downloadJob?.cancel()
         downloadJob = null
-        _state.value = State.Idle
+        _state.value = AiAssetDownloadState.Idle
         notifier.cancel()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -159,23 +160,13 @@ class AiAssetDownloadService : Service() {
             0
         }
 
-    sealed class State {
-        data object Idle : State()
-        data class Downloading(
-            val asset: AiAsset,
-            val progress: DownloadProgress?,
-        ) : State()
-        data class Completed(val asset: AiAsset, val path: String) : State()
-        data class Error(val asset: AiAsset, val message: String) : State()
-    }
-
     companion object {
         private const val ACTION_START = "org.devil.hytranslator.action.START_AI_ASSET_DOWNLOAD"
         const val ACTION_CANCEL = "org.devil.hytranslator.action.CANCEL_AI_ASSET_DOWNLOAD"
         private const val EXTRA_ASSET = "asset"
 
-        private val _state = MutableStateFlow<State>(State.Idle)
-        val state: StateFlow<State> = _state.asStateFlow()
+        private val _state = MutableStateFlow<AiAssetDownloadState>(AiAssetDownloadState.Idle)
+        val state: StateFlow<AiAssetDownloadState> = _state.asStateFlow()
 
         fun start(context: Context, asset: AiAsset) {
             val intent = Intent(context, AiAssetDownloadService::class.java)

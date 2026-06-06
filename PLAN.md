@@ -37,7 +37,8 @@
   `TranslatorRepository` 状态都使用 app/domain 自己的纯 Kotlin 类型。
 - 选中模型持久化已从 SharedPreferences 迁移到 Preferences DataStore，旧 sharedpref
   备份排除规则保留用于历史安装。
-- `ModelDownloadService` 通过 companion object 静态 `StateFlow` 与 ViewModel 通信，不利于进程恢复、测试和持久化。
+- 下载 Service 暴露的状态类型已迁到 domain 层，ViewModel 不再依赖 Service 内部
+  `State` 类型；但进度仍通过 companion object 静态 `StateFlow` 暴露，后续需要持久化进度流。
 - `app` 基本没有单元测试、Compose UI 测试或 instrumented 测试；`:lib` 当前测试仍是占位示例。
 - Manifest 已移除 `MainActivity` 的 `configChanges`，并新增配置变化重建测试；
   后续继续覆盖更多 UI 状态和进程死亡恢复。
@@ -173,7 +174,8 @@ DI 默认决策：
 - 评估并落地 Google 推荐的用户发起数据传输方案：
   - Android 14+ 优先考虑 User-Initiated Data Transfer job。
   - 需要即时前台可见和兼容旧系统时保留 Foreground Service fallback。
-- 下载状态不再依赖 service 静态变量，改为 repository 暴露持久化进度流。
+- 下载状态模型已从 Service 内部类型迁到 domain 层；后续还需移除 service 静态变量，
+  改为 repository 暴露持久化进度流。
 - 下载进度、速度、剩余大小、错误原因使用统一 domain model，再映射到 UI 和 notification。
 - 通知 adapter 只负责平台渲染：
   - Android 16+ 使用 `Notification.ProgressStyle` 和实时更新。
