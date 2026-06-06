@@ -5,4 +5,7 @@
     <string name="url_asr_zipformer_decoder" translatable="false">https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/resolve/main/decoder-epoch-99-avg-1.onnx?download=true</string>
     <string name="url_asr_zipformer_joiner" translatable="false">https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/resolve/main/joiner-epoch-99-avg-1.onnx?download=true</string>
     <string name="url_asr_zipformer_tokens" translatable="false">https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/resolve/main/tokens.txt?download=true</string>
+    <string name="url_ocr_ppocrv5_det_tar" translatable="false">https://paddlelite-demo.bj.bcebos.com/paddle-x/ocr/models/PP-OCRv5_mobile_det.tar.gz</string>
+    <string name="url_ocr_ppocrv5_rec_tar" translatable="false">https://paddlelite-demo.bj.bcebos.com/paddle-x/ocr/models/PP-OCRv5_mobile_rec.tar.gz</string>
+    <string name="url_ocr_labels_tar" translatable="false">https://paddlelite-demo.bj.bcebos.com/demo/ocr/labels/labels.tar.gz</string>
 </resources>

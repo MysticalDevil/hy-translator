@@ -118,9 +118,9 @@
 
 - `AppContainer` 仍创建 `MlKitOcrTextRepository`，`OcrEngine` 仍使用
   ML Kit Chinese Text Recognition；PaddleOCR PP-OCRv5 mobile runtime 尚未接入。
-- `AiAsset.OcrPpOcrV5Mobile` 只声明了 `PP-OCRv5_mobile_det.nb`、
-  `PP-OCRv5_mobile_rec.nb`、`ppocr_keys_ocrv5.txt` 文件名和最小大小，没有配置 URL，
-  因此点击下载会进入 “Download URL is not configured ...” 错误。
+- `AiAsset.OcrPpOcrV5Mobile` 已配置官方 Paddle Lite demo 资源来源，下载器支持
+  tar.gz 解包并提取 `PP-OCRv5_mobile_det.nb`、`PP-OCRv5_mobile_rec.nb`、
+  `ppocr_keys_ocrv5.txt`。后续仍要接 PaddleOCR runtime，而不是继续使用 ML Kit。
 - Gradle 依赖仍包含 ML Kit OCR，尚无 PaddleOCR/Paddle Lite runtime 或 native libs。
 - OCR adapter 边界已有，但还缺 PaddleOCR 初始化、模型文件校验、bitmap 预处理、
   det/rec pipeline、typed error 和真机 smoke 验证。
@@ -327,6 +327,7 @@ DI 默认决策：
   - 使用 `ppocr_keys_ocrv5.txt` 字典。
   - 第一版只启用 det + rec，不启用 unwarp 和方向分类模型。
   - 模型作为首次使用资源下载，不打包进 APK。
+  - 已配置官方 Paddle Lite demo tar.gz 资源，并在下载器中支持单文件解包。
 - OCR 可用性验收：
   - 未下载 OCR 资源时点击 OCR 只触发资源下载，不进入不可用 camera/gallery 流。
   - OCR 资源下载完成后自动 refresh，用户再次点击 OCR 可进入相机/相册。
@@ -359,6 +360,8 @@ DI 默认决策：
   - 使用 MockWebServer 或等价 fake HTTP source 测试 Range、断点续传、大小校验、取消。
   - 已新增下载状态持久化记录的 JVM 映射测试，覆盖模型/AI 资源下载状态恢复；
     后续还需补真实 downloader 和 service notification action 测试。
+  - 已新增 AI asset spec JVM 测试，覆盖 OCR PP-OCRv5 mobile 必需文件、URL resource
+    和 tar.gz entry 配置。
 - Compose UI 测试：
   - 已新增 `TranslatorScreenTest` 覆盖主屏空状态、翻译结果状态和模型选择弹窗。
   - 后续继续补下载进度展示、权限拒绝状态和语言交换。
