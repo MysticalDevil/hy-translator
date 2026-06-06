@@ -25,13 +25,14 @@
 
 主要差距：
 
-- `MainActivity` 手动创建 repository、controller、notifier、
-  ViewModel factory 的逻辑已迁到 `TranslatorRoute`，仍缺少标准 DI 入口。
+- `MainActivity` 和 `TranslatorRoute` 已不再手动创建 repository、controller、notifier；
+  当前通过 `HyTranslatorApplication` + `AppContainer` 作为过渡 DI 入口，最终仍应收敛到 Hilt。
 - `TranslatorViewModel` 同时负责翻译、模型下载、模型加载、
   通知状态观察、语言列表和清理逻辑，职责过宽。
 - UI 层已不再直接引用 `data.Languages`、`data.ModelOptions`；OCR 权限、相册 launcher
-  由 Route 处理，图片解码、EXIF 旋转和 ML Kit OCR 已封装到 `platform.ocr.OcrProcessor`；
-  仍有 CameraX 预览和较大 Screen 组件待继续拆分。
+  由 Route 处理，OCR 状态转换集中到 `OcrWorkflowController`，图片解码、EXIF 旋转和
+  ML Kit OCR 已封装到 `platform.ocr.OcrProcessor`；仍有 CameraX 预览和较大 Screen
+  组件待继续拆分。
 - domain 模型已移除 Android resource id；`Language`、`ModelOption` 和
   `TranslatorRepository` 状态都使用 app/domain 自己的纯 Kotlin 类型。
 - 选中模型持久化已从 SharedPreferences 迁移到 Preferences DataStore，旧 sharedpref
@@ -139,13 +140,14 @@ DI 默认决策：
 
 ### Phase 3：DI 和入口标准化
 
-- 新增 Application 类并启用 Hilt。
+- 已新增 Application 类和手写 `AppContainer` 作为迁移台阶；后续启用 Hilt。
 - 为 repository、OkHttp、DataStore、notifier、download controller、
   native adapter 提供 module。
 - `MainActivity` 不再手动 new 依赖，只负责 `setContent`、edge-to-edge、
   permission route 和 navigation host。
 - `ModelDownloadService` 通过注入获取依赖，避免在 service 内直接创建 repository。
-- 删除 ViewModel factory 中的手动组装逻辑。
+- ViewModel factory 已独立为 `TranslatorViewModelFactory`，手动组装逻辑集中到
+  `DefaultAppContainer`，后续由 Hilt modules 替换。
 
 ### Phase 4：Compose UDF 和 UI 拆分
 
@@ -160,7 +162,8 @@ DI 默认决策：
 - 已新增 `TranslatorRoute`，`MainActivity` 只负责 edge-to-edge、主题和承载 Route；
   OCR 权限、相册 launcher 和图片处理已迁出 Screen，后续继续把 OCR 处理链路下沉到 use case/data source。
 - 图片 URI 解码、EXIF 旋转、OCR 调用已从 `TranslatorScreen` 移到
-  `platform.ocr.OcrProcessor`；后续替换 PaddleOCR 时优先替换该 adapter。
+  `platform.ocr.OcrProcessor`；OCR flow 状态转换已移到 `OcrWorkflowController`。
+  后续替换 PaddleOCR 时优先替换该 adapter。
 - 为关键 Composable 增加 preview parameter provider 和稳定假数据。
 - 删除不必要的 `configChanges`，通过 ViewModel、SavedStateHandle 和测试证明配置变化可恢复。
 
@@ -216,6 +219,9 @@ DI 默认决策：
 - Compose UI 测试：
   - 已新增 `TranslatorScreenTest` 覆盖主屏空状态、翻译结果状态和模型选择弹窗。
   - 后续继续补下载进度展示、权限拒绝状态和语言交换。
+- OCR workflow 单元测试：
+  - 已覆盖 source picker、camera、hide 的状态转换。
+  - 后续补相册 URI、bitmap 识别成功和 typed error 路径。
 - Instrumented 测试：
   - 通知权限路径。
   - 前台服务/UIDT fallback。

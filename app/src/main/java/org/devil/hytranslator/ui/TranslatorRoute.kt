@@ -2,7 +2,6 @@ package org.devil.hytranslator.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import android.os.Build
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -23,9 +22,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.launch
-import org.devil.hytranslator.R
 import org.devil.hytranslator.HyTranslatorApplication
+import org.devil.hytranslator.R
 import org.devil.hytranslator.domain.model.AiAsset
 import org.devil.hytranslator.domain.model.AiAssetState
 import org.devil.hytranslator.platform.ocr.OcrProcessor
@@ -52,6 +50,18 @@ fun TranslatorRoute(
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val ocrFailedMessage = stringResource(R.string.ocr_failed)
+    val ocrWorkflowController = remember(scope) {
+        OcrWorkflowController(
+            scope = scope,
+            recognizeBitmap = { bitmap ->
+                getOcrProcessor().recognize(bitmap)
+            },
+            recognizeUri = { uri, failedMessage ->
+                getOcrProcessor().recognize(uri, failedMessage)
+            },
+            updateOcrFlow = { nextFlow -> ocrFlow = nextFlow },
+        )
+    }
 
     DisposableEffect(Unit) {
         onDispose { ocrProcessor?.close() }
@@ -78,7 +88,7 @@ fun TranslatorRoute(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (granted) {
-            ocrFlow = OcrFlow.CameraActive
+            ocrWorkflowController.showCamera()
         }
     }
 
@@ -86,37 +96,17 @@ fun TranslatorRoute(
         ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
         if (uri != null) {
-            scope.launch {
-                ocrFlow = OcrFlow.Processing
-                try {
-                    val text = getOcrProcessor().recognize(uri, ocrFailedMessage)
-                    ocrFlow = OcrFlow.Result(text)
-                } catch (e: Exception) {
-                    ocrFlow = OcrFlow.Error(e.message ?: ocrFailedMessage)
-                }
-            }
-        }
-    }
-
-    val handleOcrBitmap: (Bitmap) -> Unit = { bitmap ->
-        ocrFlow = OcrFlow.Processing
-        scope.launch {
-            try {
-                val text = getOcrProcessor().recognize(bitmap)
-                ocrFlow = OcrFlow.Result(text)
-            } catch (e: Exception) {
-                ocrFlow = OcrFlow.Error(e.message ?: ocrFailedMessage)
-            }
+            ocrWorkflowController.processUri(uri, ocrFailedMessage)
         }
     }
 
     val requestCamera: () -> Unit = {
-        ocrFlow = OcrFlow.Hidden
+        ocrWorkflowController.hide()
         cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
     val requestGallery: () -> Unit = {
-        ocrFlow = OcrFlow.Hidden
+        ocrWorkflowController.hide()
         galleryLauncher.launch(
             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
         )
@@ -201,20 +191,22 @@ fun TranslatorRoute(
         onDownloadAiAsset = startAiAssetDownload,
         onStartOcr = {
             if (uiState.ocrAssetState is AiAssetState.Ready) {
-                ocrFlow = OcrFlow.SourcePicker
+                ocrWorkflowController.showSourcePicker()
             } else {
                 startAiAssetDownload(AiAsset.OcrPpOcrV5Mobile)
             }
         },
-        onOcrBitmapCaptured = handleOcrBitmap,
-        onOcrDismiss = { ocrFlow = OcrFlow.Hidden },
+        onOcrBitmapCaptured = { bitmap ->
+            ocrWorkflowController.processBitmap(bitmap, ocrFailedMessage)
+        },
+        onOcrDismiss = ocrWorkflowController::hide,
         onOcrRequestCamera = requestCamera,
         onOcrRequestGallery = requestGallery,
         onOcrTextConfirm = { text ->
             viewModel.onEvent(TranslatorEvent.InputChanged(text))
-            ocrFlow = OcrFlow.Hidden
+            ocrWorkflowController.hide()
         },
-        onOcrRetry = { ocrFlow = OcrFlow.SourcePicker },
+        onOcrRetry = ocrWorkflowController::showSourcePicker,
         modelStatus = uiState.modelStatus,
         downloadProgress = uiState.downloadProgress,
         selectedModel = uiState.selectedModel,
