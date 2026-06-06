@@ -13,25 +13,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.devil.hytranslator.data.ModelOptions
 import org.devil.hytranslator.data.repository.ModelRepositoryImpl
 import org.devil.hytranslator.domain.model.DownloadProgress
-import org.devil.hytranslator.domain.model.ModelDownloadState
 import org.devil.hytranslator.domain.model.ModelOption
+import org.devil.hytranslator.platform.download.ModelDownloadStateStore
 
 class ModelDownloadService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var downloadJob: Job? = null
     private lateinit var notifier: ModelDownloadNotifier
+    private lateinit var stateStore: ModelDownloadStateStore
 
     override fun onCreate() {
         super.onCreate()
         notifier = ModelDownloadNotifier(applicationContext)
+        stateStore = ModelDownloadStateStore(applicationContext)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -61,7 +61,6 @@ class ModelDownloadService : Service() {
 
     private fun startDownload(model: ModelOption) {
         downloadJob?.cancel()
-        _state.value = ModelDownloadState.Downloading(model, null)
 
         val initialNotification = notifier.progressNotification(model, downloaded = 0L, total = 0L)
         ServiceCompat.startForeground(
@@ -78,20 +77,21 @@ class ModelDownloadService : Service() {
         downloadJob = serviceScope.launch {
             val repository = ModelRepositoryImpl(applicationContext)
             repository.selectModel(model)
+            stateStore.setDownloading(model, null)
             try {
                 repository.download().collect { progress ->
-                    _state.value = ModelDownloadState.Downloading(model, progress)
+                    stateStore.setDownloading(model, progress)
                     when (progress) {
                         is DownloadProgress.Started -> updateForeground(model, progress)
                         is DownloadProgress.Downloading -> updateForeground(model, progress)
                         is DownloadProgress.Completed -> {
-                            _state.value = ModelDownloadState.Completed(model, progress.path)
+                            stateStore.setCompleted(model, progress.path)
                             notifier.showLoading(model)
                             stopForeground(STOP_FOREGROUND_DETACH)
                             stopSelf()
                         }
                         is DownloadProgress.Error -> {
-                            _state.value = ModelDownloadState.Error(model, progress.message)
+                            stateStore.setError(model, progress.message)
                             notifier.showError(progress.message)
                             stopForeground(STOP_FOREGROUND_DETACH)
                             stopSelf()
@@ -102,7 +102,7 @@ class ModelDownloadService : Service() {
                 throw e
             } catch (e: Exception) {
                 val message = e.message ?: e.javaClass.simpleName
-                _state.value = ModelDownloadState.Error(model, message)
+                stateStore.setError(model, message)
                 notifier.showError(message)
                 stopForeground(STOP_FOREGROUND_DETACH)
                 stopSelf()
@@ -159,7 +159,9 @@ class ModelDownloadService : Service() {
     private fun cancelDownload() {
         downloadJob?.cancel()
         downloadJob = null
-        _state.value = ModelDownloadState.Idle
+        runBlocking(Dispatchers.IO) {
+            stateStore.setIdle()
+        }
         notifier.cancel()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -169,9 +171,6 @@ class ModelDownloadService : Service() {
         private const val ACTION_START = "org.devil.hytranslator.action.START_MODEL_DOWNLOAD"
         private const val EXTRA_MODEL_KEY = "model_key"
         const val ACTION_CANCEL = "org.devil.hytranslator.action.CANCEL_MODEL_DOWNLOAD"
-
-        private val _state = MutableStateFlow<ModelDownloadState>(ModelDownloadState.Idle)
-        val state: StateFlow<ModelDownloadState> = _state.asStateFlow()
 
         fun start(context: Context, model: ModelOption) {
             val intent = Intent(context, ModelDownloadService::class.java)

@@ -13,29 +13,32 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.devil.hytranslator.data.repository.AiAssetRepositoryImpl
 import org.devil.hytranslator.domain.model.AiAsset
-import org.devil.hytranslator.domain.model.AiAssetDownloadState
 import org.devil.hytranslator.domain.model.DownloadProgress
+import org.devil.hytranslator.platform.download.AiAssetDownloadStateStore
 
 class AiAssetDownloadService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var downloadJob: Job? = null
+    private var currentAsset: AiAsset? = null
     private lateinit var notifier: AiAssetDownloadNotifier
+    private lateinit var stateStore: AiAssetDownloadStateStore
 
     override fun onCreate() {
         super.onCreate()
         notifier = AiAssetDownloadNotifier(applicationContext)
+        stateStore = AiAssetDownloadStateStore(applicationContext)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_CANCEL -> {
-                cancelDownload()
+                val asset = intent.getStringExtra(EXTRA_ASSET)
+                    ?.let { runCatching { AiAsset.valueOf(it) }.getOrNull() }
+                cancelDownload(asset)
                 return START_NOT_STICKY
             }
 
@@ -58,32 +61,34 @@ class AiAssetDownloadService : Service() {
     }
 
     private fun startDownload(asset: AiAsset) {
+        currentAsset?.takeIf { it != asset }?.let { notifier.cancel(it) }
         downloadJob?.cancel()
-        _state.value = AiAssetDownloadState.Downloading(asset, null)
+        currentAsset = asset
 
         ServiceCompat.startForeground(
             this,
-            AiAssetDownloadNotifier.NOTIFICATION_ID,
+            AiAssetDownloadNotifier.notificationId(asset),
             notifier.progressNotification(asset, downloaded = 0L, total = 0L),
             foregroundServiceType(),
         )
 
         downloadJob = serviceScope.launch {
             val repository = AiAssetRepositoryImpl(applicationContext)
+            stateStore.setDownloading(asset, null)
             try {
                 repository.download(asset).collect { progress ->
-                    _state.value = AiAssetDownloadState.Downloading(asset, progress)
+                    stateStore.setDownloading(asset, progress)
                     when (progress) {
                         is DownloadProgress.Started -> updateForeground(asset, progress)
                         is DownloadProgress.Downloading -> updateForeground(asset, progress)
                         is DownloadProgress.Completed -> {
-                            _state.value = AiAssetDownloadState.Completed(asset, progress.path)
+                            stateStore.setCompleted(asset, progress.path)
                             notifier.showComplete(asset)
                             stopForeground(STOP_FOREGROUND_DETACH)
                             stopSelf()
                         }
                         is DownloadProgress.Error -> {
-                            _state.value = AiAssetDownloadState.Error(asset, progress.message)
+                            stateStore.setError(asset, progress.message)
                             notifier.showError(asset, progress.message)
                             stopForeground(STOP_FOREGROUND_DETACH)
                             stopSelf()
@@ -94,7 +99,7 @@ class AiAssetDownloadService : Service() {
                 throw e
             } catch (e: Exception) {
                 val message = e.message ?: e.javaClass.simpleName
-                _state.value = AiAssetDownloadState.Error(asset, message)
+                stateStore.setError(asset, message)
                 notifier.showError(asset, message)
                 stopForeground(STOP_FOREGROUND_DETACH)
                 stopSelf()
@@ -121,7 +126,7 @@ class AiAssetDownloadService : Service() {
         }
         ServiceCompat.startForeground(
             this,
-            AiAssetDownloadNotifier.NOTIFICATION_ID,
+            AiAssetDownloadNotifier.notificationId(asset),
             notification,
             foregroundServiceType(),
         )
@@ -144,11 +149,16 @@ class AiAssetDownloadService : Service() {
             -> true
         }
 
-    private fun cancelDownload() {
+    private fun cancelDownload(asset: AiAsset? = null) {
+        val activeAsset = currentAsset ?: asset
+        if (asset != null && currentAsset != null && asset != currentAsset) return
         downloadJob?.cancel()
         downloadJob = null
-        _state.value = AiAssetDownloadState.Idle
-        notifier.cancel()
+        runBlocking(Dispatchers.IO) {
+            stateStore.setIdle()
+        }
+        activeAsset?.let { notifier.cancel(it) }
+        currentAsset = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -163,10 +173,7 @@ class AiAssetDownloadService : Service() {
     companion object {
         private const val ACTION_START = "org.devil.hytranslator.action.START_AI_ASSET_DOWNLOAD"
         const val ACTION_CANCEL = "org.devil.hytranslator.action.CANCEL_AI_ASSET_DOWNLOAD"
-        private const val EXTRA_ASSET = "asset"
-
-        private val _state = MutableStateFlow<AiAssetDownloadState>(AiAssetDownloadState.Idle)
-        val state: StateFlow<AiAssetDownloadState> = _state.asStateFlow()
+        const val EXTRA_ASSET = "asset"
 
         fun start(context: Context, asset: AiAsset) {
             val intent = Intent(context, AiAssetDownloadService::class.java)

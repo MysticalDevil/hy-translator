@@ -43,18 +43,18 @@ class AiAssetDownloadNotifier(
     fun showComplete(asset: AiAsset) {
         if (!canPostNotifications()) return
         resetProgressThrottle()
-        notificationManager.notify(NOTIFICATION_ID, completeNotification(asset))
+        notificationManager.notify(notificationId(asset), completeNotification(asset))
     }
 
     fun showError(asset: AiAsset, message: String) {
         if (!canPostNotifications()) return
         resetProgressThrottle()
-        notificationManager.notify(NOTIFICATION_ID, errorNotification(asset, message))
+        notificationManager.notify(notificationId(asset), errorNotification(asset, message))
     }
 
-    fun cancel() {
+    fun cancel(asset: AiAsset) {
         resetProgressThrottle()
-        notificationManager.cancel(NOTIFICATION_ID)
+        notificationManager.cancel(notificationId(asset))
     }
 
     fun shouldPublishProgress(downloaded: Long, total: Long): Boolean =
@@ -74,7 +74,7 @@ class AiAssetDownloadNotifier(
             .setOnlyAlertOnce(true)
             .setCategory(Notification.CATEGORY_PROGRESS)
             .setColor(NOTIFICATION_COLOR)
-            .addAction(cancelAction())
+            .addAction(cancelAction(asset))
 
         if (total > 0) {
             builder.setProgress(PROGRESS_MAX, percent, false)
@@ -163,15 +163,16 @@ class AiAssetDownloadNotifier(
             )
     }
 
-    private fun cancelAction(): Notification.Action =
+    private fun cancelAction(asset: AiAsset): Notification.Action =
         Notification.Action.Builder(
             Icon.createWithResource(context, R.drawable.ic_cancel),
             context.getString(R.string.model_download_notification_cancel),
             PendingIntent.getService(
                 context,
-                CANCEL_REQUEST_CODE,
+                notificationId(asset),
                 Intent(context, AiAssetDownloadService::class.java)
-                    .setAction(AiAssetDownloadService.ACTION_CANCEL),
+                    .setAction(AiAssetDownloadService.ACTION_CANCEL)
+                    .putExtra(AiAssetDownloadService.EXTRA_ASSET, asset.name),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             ),
         ).build()
@@ -237,11 +238,17 @@ class AiAssetDownloadNotifier(
 
     companion object {
         const val CHANNEL_ID = "ai_asset_downloads"
-        const val NOTIFICATION_ID = 1003
-        private const val CANCEL_REQUEST_CODE = 1004
+        const val ASR_NOTIFICATION_ID = 1003
+        const val OCR_NOTIFICATION_ID = 1004
         private const val PROGRESS_MAX = 100
         private const val BYTES_PER_MB = 1024.0 * 1024.0
         private const val MIN_PROGRESS_UPDATE_INTERVAL_MS = 1_000L
         private val NOTIFICATION_COLOR = Color.rgb(77, 171, 247)
+
+        fun notificationId(asset: AiAsset): Int =
+            when (asset) {
+                AiAsset.AsrStreamingZipformer -> ASR_NOTIFICATION_ID
+                AiAsset.OcrPpOcrV5Mobile -> OCR_NOTIFICATION_ID
+            }
     }
 }

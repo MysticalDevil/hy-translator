@@ -75,8 +75,9 @@
 - 选中模型持久化已从 SharedPreferences 迁移到 Preferences DataStore，旧 sharedpref
   备份排除规则保留用于历史安装。
 - 下载 Service 暴露的状态类型已迁到 domain 层，ViewModel 不再依赖 Service 内部
-  `State` 类型；但进度仍通过 companion object 静态 `StateFlow` 暴露，后续需要持久化进度流。
-- 下载通知已有前台服务和进度样式，但模型下载、AI 资源下载、UI 状态和通知动作仍未完全统一；
+  `State` 类型；模型下载和 AI 资源下载的基础状态已改由 DataStore 持久化并通过 controller 暴露。
+- 下载通知已有前台服务和进度样式，AI 资源下载通知已按 ASR/OCR 拆成稳定 notification id；
+  但模型下载、AI 资源下载、UI 状态和通知动作仍未完全统一；
   通知取消/完成/失败与 UI 的双向绑定和可恢复状态仍是当前最高优先级缺口。
 - OCR 资源层已有 `AiAsset.OcrPpOcrV5Mobile` 和 `OcrTextRepository` adapter 边界，
   但实际 OCR runtime 仍是 ML Kit，PaddleOCR PP-OCRv5 mobile 尚未接入。
@@ -93,14 +94,14 @@
 
 ### 下载、通知和后台任务
 
-- `ModelDownloadService` 和 `AiAssetDownloadService` 仍各自维护
-  companion object `MutableStateFlow`。这些状态只存在于当前进程内存中，进程被杀后
-  UI 无法恢复真实下载状态。
+- `ModelDownloadService` 和 `AiAssetDownloadService` 已不再把 companion object
+  `MutableStateFlow` 作为 UI 状态来源；当前已新增 DataStore 持久化状态 store。
+  后续仍要补 process death 场景下的“下载中但进程被杀”恢复/失败判定。
 - 两套下载 service/notifier 重复实现下载 job、foreground notification、取消动作、
   进度节流和错误展示，后续应收敛为统一 download runtime，再由 model/AI asset
   adapter 提供 job metadata。
-- AI 资源下载通知当前只有单个 notification id，ASR/OCR 同时或连续下载时无法稳定表示
-  每个资源自己的通知、取消、失败和完成状态。
+- AI 资源下载通知已拆成 ASR/OCR 独立 notification id，取消 action 也携带 asset id；
+  但 service 当前仍是单 job，尚未支持真正的多资源并发下载。
 - 通知动作目前主要是取消，缺少 retry、打开 App、跳转到对应资源/模型状态的动作模型。
 - UI 取消、通知取消、模型切换、清理资源和 service 自身失败之间还没有完整双向绑定；
   `TranslatorViewModel` 只是收集 service 内存流并映射 UI 状态。
@@ -298,13 +299,14 @@ DI 默认决策：
 - 评估并落地 Google 推荐的用户发起数据传输方案：
   - Android 14+ 优先考虑 User-Initiated Data Transfer job。
   - 需要即时前台可见和兼容旧系统时保留 Foreground Service fallback。
-- 下载状态模型已从 Service 内部类型迁到 domain 层；后续还需移除 service 静态变量，
-  改为 repository 暴露持久化进度流。
+- 下载状态模型已从 Service 内部类型迁到 domain 层，并已移除 service 静态状态流；
+  当前通过 DataStore 持久化基础下载状态，后续还需补 job metadata、速度、重试次数和进程死亡恢复策略。
 - 下载进度、速度、剩余大小、错误原因使用统一 domain model，再映射到 UI 和 notification。
 - 通知 adapter 只负责平台渲染：
   - Android 16+ 使用 `Notification.ProgressStyle` 和实时更新。
   - 旧系统使用标准 determinate progress notification。
   - 小图标统一使用符合 Android 通知规范的单色 drawable。
+  - AI 资源通知使用按资源稳定分配的 notification id，避免 ASR/OCR 状态互相覆盖。
 - 明确用户划掉任务后的策略：
   - 如果只是移除 recent task，不应静默破坏已承诺的下载。
   - 如果系统终止进程，下载状态必须可恢复或以明确失败状态呈现。
