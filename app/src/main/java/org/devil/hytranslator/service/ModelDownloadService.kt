@@ -25,6 +25,8 @@ class ModelDownloadService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var downloadJob: Job? = null
+    private var currentModel: ModelOption? = null
+    private var terminalStateReached = false
     private lateinit var notifier: ModelDownloadNotifier
     private lateinit var stateStore: ModelDownloadStateStore
 
@@ -54,6 +56,13 @@ class ModelDownloadService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        currentModel
+            ?.takeIf { downloadJob?.isActive == true && !terminalStateReached }
+            ?.let { model ->
+                runBlocking(Dispatchers.IO) {
+                    stateStore.setError(model, DOWNLOAD_INTERRUPTED_MESSAGE)
+                }
+            }
         downloadJob?.cancel()
         serviceScope.cancel()
         super.onDestroy()
@@ -61,6 +70,8 @@ class ModelDownloadService : Service() {
 
     private fun startDownload(model: ModelOption) {
         downloadJob?.cancel()
+        currentModel = model
+        terminalStateReached = false
 
         val initialNotification = notifier.progressNotification(model, downloaded = 0L, total = 0L)
         ServiceCompat.startForeground(
@@ -85,12 +96,14 @@ class ModelDownloadService : Service() {
                         is DownloadProgress.Started -> updateForeground(model, progress)
                         is DownloadProgress.Downloading -> updateForeground(model, progress)
                         is DownloadProgress.Completed -> {
+                            terminalStateReached = true
                             stateStore.setCompleted(model, progress.path)
                             notifier.showLoading(model)
                             stopForeground(STOP_FOREGROUND_DETACH)
                             stopSelf()
                         }
                         is DownloadProgress.Error -> {
+                            terminalStateReached = true
                             stateStore.setError(model, progress.message)
                             notifier.showError(progress.message)
                             stopForeground(STOP_FOREGROUND_DETACH)
@@ -102,6 +115,7 @@ class ModelDownloadService : Service() {
                 throw e
             } catch (e: Exception) {
                 val message = e.message ?: e.javaClass.simpleName
+                terminalStateReached = true
                 stateStore.setError(model, message)
                 notifier.showError(message)
                 stopForeground(STOP_FOREGROUND_DETACH)
@@ -157,12 +171,14 @@ class ModelDownloadService : Service() {
         }
 
     private fun cancelDownload() {
+        terminalStateReached = true
         downloadJob?.cancel()
         downloadJob = null
         runBlocking(Dispatchers.IO) {
             stateStore.setIdle()
         }
         notifier.cancel()
+        currentModel = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -171,6 +187,7 @@ class ModelDownloadService : Service() {
         private const val ACTION_START = "org.devil.hytranslator.action.START_MODEL_DOWNLOAD"
         private const val EXTRA_MODEL_KEY = "model_key"
         const val ACTION_CANCEL = "org.devil.hytranslator.action.CANCEL_MODEL_DOWNLOAD"
+        private const val DOWNLOAD_INTERRUPTED_MESSAGE = "Download was interrupted"
 
         fun start(context: Context, model: ModelOption) {
             val intent = Intent(context, ModelDownloadService::class.java)

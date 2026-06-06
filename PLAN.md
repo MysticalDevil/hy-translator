@@ -96,7 +96,8 @@
 
 - `ModelDownloadService` 和 `AiAssetDownloadService` 已不再把 companion object
   `MutableStateFlow` 作为 UI 状态来源；当前已新增 DataStore 持久化状态 store。
-  后续仍要补 process death 场景下的“下载中但进程被杀”恢复/失败判定。
+  Service 非正常销毁时会把活跃下载持久化为 interrupted error；后续仍要补进程被直接杀死后
+  App 下次启动时的 job metadata 审计。
 - 两套下载 service/notifier 重复实现下载 job、foreground notification、取消动作、
   进度节流和错误展示，后续应收敛为统一 download runtime，再由 model/AI asset
   adapter 提供 job metadata。
@@ -300,7 +301,8 @@ DI 默认决策：
   - Android 14+ 优先考虑 User-Initiated Data Transfer job。
   - 需要即时前台可见和兼容旧系统时保留 Foreground Service fallback。
 - 下载状态模型已从 Service 内部类型迁到 domain 层，并已移除 service 静态状态流；
-  当前通过 DataStore 持久化基础下载状态，后续还需补 job metadata、速度、重试次数和进程死亡恢复策略。
+  当前通过 DataStore 持久化基础下载状态，service 异常销毁会记录 interrupted error；
+  后续还需补 job metadata、速度、重试次数和进程被直接杀死后的启动恢复策略。
 - 下载进度、速度、剩余大小、错误原因使用统一 domain model，再映射到 UI 和 notification。
 - 通知 adapter 只负责平台渲染：
   - Android 16+ 使用 `Notification.ProgressStyle` 和实时更新。

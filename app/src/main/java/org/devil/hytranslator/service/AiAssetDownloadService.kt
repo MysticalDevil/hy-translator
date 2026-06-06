@@ -24,6 +24,7 @@ class AiAssetDownloadService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var downloadJob: Job? = null
     private var currentAsset: AiAsset? = null
+    private var terminalStateReached = false
     private lateinit var notifier: AiAssetDownloadNotifier
     private lateinit var stateStore: AiAssetDownloadStateStore
 
@@ -55,6 +56,13 @@ class AiAssetDownloadService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        currentAsset
+            ?.takeIf { downloadJob?.isActive == true && !terminalStateReached }
+            ?.let { asset ->
+                runBlocking(Dispatchers.IO) {
+                    stateStore.setError(asset, DOWNLOAD_INTERRUPTED_MESSAGE)
+                }
+            }
         downloadJob?.cancel()
         serviceScope.cancel()
         super.onDestroy()
@@ -64,6 +72,7 @@ class AiAssetDownloadService : Service() {
         currentAsset?.takeIf { it != asset }?.let { notifier.cancel(it) }
         downloadJob?.cancel()
         currentAsset = asset
+        terminalStateReached = false
 
         ServiceCompat.startForeground(
             this,
@@ -82,12 +91,14 @@ class AiAssetDownloadService : Service() {
                         is DownloadProgress.Started -> updateForeground(asset, progress)
                         is DownloadProgress.Downloading -> updateForeground(asset, progress)
                         is DownloadProgress.Completed -> {
+                            terminalStateReached = true
                             stateStore.setCompleted(asset, progress.path)
                             notifier.showComplete(asset)
                             stopForeground(STOP_FOREGROUND_DETACH)
                             stopSelf()
                         }
                         is DownloadProgress.Error -> {
+                            terminalStateReached = true
                             stateStore.setError(asset, progress.message)
                             notifier.showError(asset, progress.message)
                             stopForeground(STOP_FOREGROUND_DETACH)
@@ -99,6 +110,7 @@ class AiAssetDownloadService : Service() {
                 throw e
             } catch (e: Exception) {
                 val message = e.message ?: e.javaClass.simpleName
+                terminalStateReached = true
                 stateStore.setError(asset, message)
                 notifier.showError(asset, message)
                 stopForeground(STOP_FOREGROUND_DETACH)
@@ -152,6 +164,7 @@ class AiAssetDownloadService : Service() {
     private fun cancelDownload(asset: AiAsset? = null) {
         val activeAsset = currentAsset ?: asset
         if (asset != null && currentAsset != null && asset != currentAsset) return
+        terminalStateReached = true
         downloadJob?.cancel()
         downloadJob = null
         runBlocking(Dispatchers.IO) {
@@ -174,6 +187,7 @@ class AiAssetDownloadService : Service() {
         private const val ACTION_START = "org.devil.hytranslator.action.START_AI_ASSET_DOWNLOAD"
         const val ACTION_CANCEL = "org.devil.hytranslator.action.CANCEL_AI_ASSET_DOWNLOAD"
         const val EXTRA_ASSET = "asset"
+        private const val DOWNLOAD_INTERRUPTED_MESSAGE = "Download was interrupted"
 
         fun start(context: Context, asset: AiAsset) {
             val intent = Intent(context, AiAssetDownloadService::class.java)
