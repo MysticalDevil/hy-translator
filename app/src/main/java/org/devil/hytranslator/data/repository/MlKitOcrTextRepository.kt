@@ -1,4 +1,4 @@
-package org.devil.hytranslator.platform.ocr
+package org.devil.hytranslator.data.repository
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -8,17 +8,18 @@ import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.devil.hytranslator.platform.ocr.OcrTextRepository
 import org.devil.hytranslator.service.OcrEngine
 
-class OcrProcessor(
+class MlKitOcrTextRepository(
     private val context: Context,
-) {
+) : OcrTextRepository {
     private val ocrEngine = OcrEngine()
 
-    suspend fun recognize(bitmap: Bitmap): String =
+    override suspend fun recognize(bitmap: Bitmap): String =
         ocrEngine.recognize(bitmap)
 
-    suspend fun recognize(uri: Uri, decodeFailedMessage: String): String {
+    override suspend fun recognize(uri: Uri, decodeFailedMessage: String): String {
         val bitmap = withContext(Dispatchers.IO) {
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
                 val raw = BitmapFactory.decodeStream(inputStream)
@@ -39,7 +40,7 @@ class OcrProcessor(
         return ocrEngine.recognize(corrected)
     }
 
-    fun close() {
+    override fun close() {
         ocrEngine.close()
     }
 

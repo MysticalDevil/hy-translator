@@ -32,7 +32,7 @@
   `VoiceInputRepository` 抽象隔离。
 - UI 层已不再直接引用 `data.Languages`、`data.ModelOptions`；OCR 权限、相册 launcher
   由 Route 处理，OCR 状态转换集中到 `OcrWorkflowController`，图片解码、EXIF 旋转和
-  ML Kit OCR 已封装到 `platform.ocr.OcrProcessor`；仍有 CameraX 预览和较大 Screen
+  ML Kit OCR 已封装到 `OcrTextRepository` adapter；仍有 CameraX 预览和较大 Screen
   组件待继续拆分。
 - domain 模型已移除 Android resource id；`Language`、`ModelOption` 和
   `TranslatorRepository` 状态都使用 app/domain 自己的纯 Kotlin 类型。
@@ -164,8 +164,8 @@ DI 默认决策：
 - 已新增 `TranslatorRoute`，`MainActivity` 只负责 edge-to-edge、主题和承载 Route；
   OCR 权限、相册 launcher 和图片处理已迁出 Screen，后续继续把 OCR 处理链路下沉到 use case/data source。
 - 图片 URI 解码、EXIF 旋转、OCR 调用已从 `TranslatorScreen` 移到
-  `platform.ocr.OcrProcessor`；OCR flow 状态转换已移到 `OcrWorkflowController`。
-  后续替换 PaddleOCR 时优先替换该 adapter。
+  `OcrTextRepository` adapter；OCR flow 状态转换已移到 `OcrWorkflowController`。
+  当前 adapter 实现仍是 ML Kit，后续替换 PaddleOCR 时优先替换该 adapter。
 - 为关键 Composable 增加 preview parameter provider 和稳定假数据。
 - 已删除不必要的 `configChanges`，通过 `MainActivityConfigurationTest` 验证 Activity
   重建后输入状态保留；后续再引入 SavedStateHandle 覆盖进程死亡恢复。
@@ -190,6 +190,8 @@ DI 默认决策：
 
 - CameraX 绑定改为 lifecycle-aware、state-driven，镜头切换必须触发重新绑定。
 - OCR 处理链路拆成 `DecodeImageUseCase`、`RecognizeTextUseCase`、`ApplyOcrTextUseCase`。
+- OCR runtime 已有 `OcrTextRepository` adapter 边界，当前实现为 ML Kit；后续切换为
+  PaddleOCR PP-OCRv5 时保持 Route/UI 不变。
 - OCR 引擎从 ML Kit 切换为 PaddleOCR PP-OCRv5 mobile：
   - 使用 `PP-OCRv5_mobile_det` 和 `PP-OCRv5_mobile_rec`。
   - 使用 `ppocr_keys_ocrv5.txt` 字典。

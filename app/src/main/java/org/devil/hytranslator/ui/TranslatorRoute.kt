@@ -26,7 +26,6 @@ import org.devil.hytranslator.HyTranslatorApplication
 import org.devil.hytranslator.R
 import org.devil.hytranslator.domain.model.AiAsset
 import org.devil.hytranslator.domain.model.AiAssetState
-import org.devil.hytranslator.platform.ocr.OcrProcessor
 
 @Composable
 fun TranslatorRoute(
@@ -42,11 +41,10 @@ fun TranslatorRoute(
     var lastTranslateTime by remember { mutableLongStateOf(0L) }
     var pendingModelDownload by remember { mutableStateOf(false) }
     var pendingAiAssetDownload by remember { mutableStateOf<AiAsset?>(null) }
-    var ocrProcessor by remember { mutableStateOf<OcrProcessor?>(null) }
     var ocrFlow by remember { mutableStateOf<OcrFlow>(OcrFlow.Hidden) }
-
-    fun getOcrProcessor(): OcrProcessor =
-        ocrProcessor ?: OcrProcessor(context.applicationContext).also { ocrProcessor = it }
+    val ocrTextRepository = remember(appContainer) {
+        appContainer.createOcrTextRepository()
+    }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val ocrFailedMessage = stringResource(R.string.ocr_failed)
@@ -54,17 +52,17 @@ fun TranslatorRoute(
         OcrWorkflowController(
             scope = scope,
             recognizeBitmap = { bitmap ->
-                getOcrProcessor().recognize(bitmap)
+                ocrTextRepository.recognize(bitmap)
             },
             recognizeUri = { uri, failedMessage ->
-                getOcrProcessor().recognize(uri, failedMessage)
+                ocrTextRepository.recognize(uri, failedMessage)
             },
             updateOcrFlow = { nextFlow -> ocrFlow = nextFlow },
         )
     }
 
     DisposableEffect(Unit) {
-        onDispose { ocrProcessor?.close() }
+        onDispose { ocrTextRepository.close() }
     }
 
     LaunchedEffect(viewModel) {
