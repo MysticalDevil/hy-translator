@@ -67,35 +67,18 @@ class ModelDownloadStateStore(
     }
 
     private fun Preferences.toModelDownloadState(): ModelDownloadState {
-        val model = this[MODEL_KEY]?.let { key ->
-            runCatching { ModelOptions.getByKey(key) }.getOrNull()
-        } ?: return ModelDownloadState.Idle
-
-        return when (this[MODEL_STATUS]) {
-            STATUS_DOWNLOADING -> ModelDownloadState.Downloading(
-                model = model,
-                progress = readProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL),
-            )
-
-            STATUS_COMPLETED -> ModelDownloadState.Completed(
-                model = model,
-                path = this[MODEL_PATH] ?: return ModelDownloadState.Idle,
-            )
-
-            STATUS_ERROR -> ModelDownloadState.Error(
-                model = model,
-                message = this[MODEL_ERROR] ?: "Download failed",
-            )
-
-            else -> ModelDownloadState.Idle
-        }
+        return modelDownloadStateFromRecord(
+            status = this[MODEL_STATUS],
+            modelKey = this[MODEL_KEY],
+            path = this[MODEL_PATH],
+            error = this[MODEL_ERROR],
+            progressType = this[MODEL_PROGRESS_TYPE],
+            downloaded = this[MODEL_DOWNLOADED],
+            total = this[MODEL_TOTAL],
+        )
     }
 
     private companion object {
-        const val STATUS_DOWNLOADING = "downloading"
-        const val STATUS_COMPLETED = "completed"
-        const val STATUS_ERROR = "error"
-
         val MODEL_STATUS = stringPreferencesKey("model_status")
         val MODEL_KEY = stringPreferencesKey("model_key")
         val MODEL_PATH = stringPreferencesKey("model_path")
@@ -156,35 +139,18 @@ class AiAssetDownloadStateStore(
     }
 
     private fun Preferences.toAiAssetDownloadState(): AiAssetDownloadState {
-        val asset = this[AI_ASSET_NAME]?.let { name ->
-            runCatching { AiAsset.valueOf(name) }.getOrNull()
-        } ?: return AiAssetDownloadState.Idle
-
-        return when (this[AI_ASSET_STATUS]) {
-            STATUS_DOWNLOADING -> AiAssetDownloadState.Downloading(
-                asset = asset,
-                progress = readProgress(AI_ASSET_PROGRESS_TYPE, AI_ASSET_DOWNLOADED, AI_ASSET_TOTAL),
-            )
-
-            STATUS_COMPLETED -> AiAssetDownloadState.Completed(
-                asset = asset,
-                path = this[AI_ASSET_PATH] ?: return AiAssetDownloadState.Idle,
-            )
-
-            STATUS_ERROR -> AiAssetDownloadState.Error(
-                asset = asset,
-                message = this[AI_ASSET_ERROR] ?: "Download failed",
-            )
-
-            else -> AiAssetDownloadState.Idle
-        }
+        return aiAssetDownloadStateFromRecord(
+            status = this[AI_ASSET_STATUS],
+            assetName = this[AI_ASSET_NAME],
+            path = this[AI_ASSET_PATH],
+            error = this[AI_ASSET_ERROR],
+            progressType = this[AI_ASSET_PROGRESS_TYPE],
+            downloaded = this[AI_ASSET_DOWNLOADED],
+            total = this[AI_ASSET_TOTAL],
+        )
     }
 
     private companion object {
-        const val STATUS_DOWNLOADING = "downloading"
-        const val STATUS_COMPLETED = "completed"
-        const val STATUS_ERROR = "error"
-
         val AI_ASSET_STATUS = stringPreferencesKey("ai_asset_status")
         val AI_ASSET_NAME = stringPreferencesKey("ai_asset_name")
         val AI_ASSET_PATH = stringPreferencesKey("ai_asset_path")
@@ -195,19 +161,94 @@ class AiAssetDownloadStateStore(
     }
 }
 
+internal const val STATUS_DOWNLOADING = "downloading"
+internal const val STATUS_COMPLETED = "completed"
+internal const val STATUS_ERROR = "error"
 private const val PROGRESS_STARTED = "started"
 private const val PROGRESS_DOWNLOADING = "downloading"
 
-private fun Preferences.readProgress(
-    typeKey: Preferences.Key<String>,
-    downloadedKey: Preferences.Key<Long>,
-    totalKey: Preferences.Key<Long>,
+internal fun modelDownloadStateFromRecord(
+    status: String?,
+    modelKey: String?,
+    path: String?,
+    error: String?,
+    progressType: String?,
+    downloaded: Long?,
+    total: Long?,
+): ModelDownloadState {
+    val model = modelKey?.let { key ->
+        runCatching { ModelOptions.getByKey(key) }.getOrNull()
+    } ?: return ModelDownloadState.Idle
+
+    return when (status) {
+        STATUS_DOWNLOADING -> ModelDownloadState.Downloading(
+            model = model,
+            progress = progressFromRecord(progressType, downloaded, total),
+        )
+
+        STATUS_COMPLETED -> ModelDownloadState.Completed(
+            model = model,
+            path = path ?: return ModelDownloadState.Idle,
+        )
+
+        STATUS_ERROR -> ModelDownloadState.Error(
+            model = model,
+            message = error ?: DEFAULT_DOWNLOAD_ERROR,
+        )
+
+        else -> ModelDownloadState.Idle
+    }
+}
+
+internal fun aiAssetDownloadStateFromRecord(
+    status: String?,
+    assetName: String?,
+    path: String?,
+    error: String?,
+    progressType: String?,
+    downloaded: Long?,
+    total: Long?,
+): AiAssetDownloadState {
+    val asset = assetName?.let { name ->
+        runCatching { AiAsset.valueOf(name) }.getOrNull()
+    } ?: return AiAssetDownloadState.Idle
+
+    return when (status) {
+        STATUS_DOWNLOADING -> AiAssetDownloadState.Downloading(
+            asset = asset,
+            progress = progressFromRecord(progressType, downloaded, total),
+        )
+
+        STATUS_COMPLETED -> AiAssetDownloadState.Completed(
+            asset = asset,
+            path = path ?: return AiAssetDownloadState.Idle,
+        )
+
+        STATUS_ERROR -> AiAssetDownloadState.Error(
+            asset = asset,
+            message = error ?: DEFAULT_DOWNLOAD_ERROR,
+        )
+
+        else -> AiAssetDownloadState.Idle
+    }
+}
+
+internal fun progressFromRecord(
+    progressType: String?,
+    downloaded: Long?,
+    total: Long?,
 ): DownloadProgress? {
-    val total = this[totalKey] ?: return null
-    val downloaded = this[downloadedKey] ?: 0L
-    return when (this[typeKey]) {
-        PROGRESS_STARTED -> DownloadProgress.Started(total = total, existing = downloaded)
-        PROGRESS_DOWNLOADING -> DownloadProgress.Downloading(downloaded = downloaded, total = total)
+    val progressTotal = total ?: return null
+    val progressDownloaded = downloaded ?: 0L
+    return when (progressType) {
+        PROGRESS_STARTED -> DownloadProgress.Started(
+            total = progressTotal,
+            existing = progressDownloaded,
+        )
+        PROGRESS_DOWNLOADING -> DownloadProgress.Downloading(
+            downloaded = progressDownloaded,
+            total = progressTotal,
+        )
         else -> null
     }
 }
@@ -247,3 +288,5 @@ private fun androidx.datastore.preferences.core.MutablePreferences.clearProgress
     remove(downloadedKey)
     remove(totalKey)
 }
+
+private const val DEFAULT_DOWNLOAD_ERROR = "Download failed"

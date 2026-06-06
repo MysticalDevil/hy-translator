@@ -355,6 +355,8 @@ DI 默认决策：
 - Repository 和 downloader 测试：
   - 使用 fake file system 或临时目录。
   - 使用 MockWebServer 或等价 fake HTTP source 测试 Range、断点续传、大小校验、取消。
+  - 已新增下载状态持久化记录的 JVM 映射测试，覆盖模型/AI 资源下载状态恢复；
+    后续还需补真实 downloader 和 service notification action 测试。
 - Compose UI 测试：
   - 已新增 `TranslatorScreenTest` 覆盖主屏空状态、翻译结果状态和模型选择弹窗。
   - 后续继续补下载进度展示、权限拒绝状态和语言交换。
