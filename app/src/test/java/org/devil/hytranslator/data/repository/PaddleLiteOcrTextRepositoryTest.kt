@@ -118,16 +118,16 @@ class PaddleLiteOcrTextRepositoryTest {
     }
 
     @Test
-    fun detectionResizePlan_keepsSmallImagesButAlignsToStride() {
+    fun detectionResizePlan_keepsSmallImagesAndAlignsToNearestStride() {
         val resize = PaddleOcrDetectionPreprocessor.resizePlan(
             sourceWidth = 321,
             sourceHeight = 240,
         )
 
         assertEquals(320, resize.width)
-        assertEquals(224, resize.height)
+        assertEquals(256, resize.height)
         assertEquals(320f / 321f, resize.ratioWidth, 0.0001f)
-        assertEquals(224f / 240f, resize.ratioHeight, 0.0001f)
+        assertEquals(256f / 240f, resize.ratioHeight, 0.0001f)
     }
 
     @Test
