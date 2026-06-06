@@ -18,3 +18,4 @@ gradle/gradle-daemon-jvm.properties
 local.properties
 REVIEW.md
 lib/src/main/prebuilt/
+third_party/sherpa-onnx-android/

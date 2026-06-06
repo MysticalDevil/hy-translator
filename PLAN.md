@@ -127,12 +127,14 @@
 
 ### ASR
 
-- `SherpaOnnxVoiceInputRepository` 是占位实现，只返回
-  `sherpa-onnx streaming runtime is not integrated yet`，没有 sherpa-onnx runtime、
-  JNI/native libs、模型加载或音频流。
+- `SherpaOnnxVoiceInputRepository` 已不再是固定占位错误：会校验 Zipformer 模型文件、
+  尝试加载 `libsherpa-onnx-jni.so`，并在缺模型/缺 native runtime/缺 AudioRecord streaming
+  时返回明确错误。真实 streaming decode 和音频采集仍未接入。
 - Manifest 已声明 `RECORD_AUDIO`，Route 层已接入录音权限请求；权限拒绝会进入
   `VoiceInputState.Error`。后续还要补 instrumented 权限测试。
-- Gradle 依赖中尚无 sherpa-onnx/onnxruntime Android 集成。
+- 已新增官方 sherpa-onnx Android runtime 安装脚本和 Gradle `jniLibs` 本地打包入口；
+  运行 `scripts/setup-sherpa-onnx-android.sh` 后可用 `:app:verifySherpaOnnxRuntime` 验证 native libs。
+  当前采用官方 release 产物生成流程；如后续需要源码级定制，再按 llama.cpp 类似方式引入 submodule。
 - `VoiceInputRepository.start()` 目前只返回单个 `VoiceInputState`，不足以表达 streaming
   partial/final result、音量/监听状态、采集错误和 runtime 关闭事件；需要改为 Flow 或 callback
   驱动的 typed event。
@@ -410,6 +412,8 @@ DI 默认决策：
   - 支持中英语音输入，输出 partial/final result。
   - Android native runtime 包含 `libsherpa-onnx-jni.so` 和 `libonnxruntime.so`。
   - 第一版设备目标为 `arm64-v8a`。
+  - 已新增 `scripts/setup-sherpa-onnx-android.sh` 安装官方 Android release runtime，
+    产物位于 ignored `third_party/sherpa-onnx-android/jniLibs`。
 - ASR 可用性验收：
   - 未下载 ASR 资源时点击麦克风只触发资源下载或明确下载入口。
   - ASR 资源 ready 后点击麦克风请求 `RECORD_AUDIO` 权限并进入 Listening；权限拒绝路径已进入
@@ -418,6 +422,7 @@ DI 默认决策：
   - final result 固化输入框，并在实时翻译开启时触发输出。
   - 通知/后台/切屏不应破坏正在进行的资源下载。
   - sherpa runtime 初始化失败、麦克风权限拒绝、音频采集失败必须进入 typed error。
+  - 当前已覆盖缺模型、缺 native runtime、权限拒绝的错误状态；音频采集和 decode 错误待接入后补。
 - 录音链路使用 `AudioRecord` adapter：
   - 采集 16 kHz mono PCM。
   - UI 通过麦克风 icon button 触发。

@@ -47,10 +47,45 @@ android {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
     }
+
+    sourceSets {
+      getByName("main") {
+        jniLibs.directories.add(
+            rootProject.layout.projectDirectory.dir("third_party/sherpa-onnx-android/jniLibs")
+                .asFile
+                .absolutePath,
+        )
+      }
+    }
 }
 
 kotlin {
     jvmToolchain(17)
+}
+
+tasks.register("verifySherpaOnnxRuntime") {
+    group = "verification"
+    description = "Checks that the local sherpa-onnx Android runtime jniLibs are installed."
+
+    val runtimeDir = rootProject.layout.projectDirectory.dir("third_party/sherpa-onnx-android/jniLibs")
+    val requiredAbis = listOf("arm64-v8a", "x86_64")
+    val requiredLibs = listOf("libsherpa-onnx-jni.so", "libonnxruntime.so")
+
+    inputs.dir(runtimeDir).optional()
+
+    doLast {
+        val missing = requiredAbis.flatMap { abi ->
+            requiredLibs.mapNotNull { lib ->
+                val file = runtimeDir.file("$abi/$lib").asFile
+                if (file.isFile) null else file
+            }
+        }
+        check(missing.isEmpty()) {
+            "Missing sherpa-onnx runtime files:\n" +
+                missing.joinToString(separator = "\n") { " - ${it.path}" } +
+                "\nRun scripts/setup-sherpa-onnx-android.sh"
+        }
+    }
 }
 
 dependencies {
