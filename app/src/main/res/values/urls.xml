@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="url_hy_mt2_gguf_base" translatable="false">https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/main/</string>
+    <string name="url_asr_zipformer_encoder" translatable="false">https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/resolve/main/encoder-epoch-99-avg-1.onnx?download=true</string>
+    <string name="url_asr_zipformer_decoder" translatable="false">https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/resolve/main/decoder-epoch-99-avg-1.onnx?download=true</string>
+    <string name="url_asr_zipformer_joiner" translatable="false">https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/resolve/main/joiner-epoch-99-avg-1.onnx?download=true</string>
+    <string name="url_asr_zipformer_tokens" translatable="false">https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/resolve/main/tokens.txt?download=true</string>
+</resources>

@@ -25,30 +25,26 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import org.devil.hytranslator.R
-import org.devil.hytranslator.data.ModelOptions
 import org.devil.hytranslator.domain.model.ModelOption
 
 @Composable
 fun ModelPickerDialog(
+    models: List<ModelOption>,
     currentModel: ModelOption,
+    recommendedModel: ModelOption,
     onSelect: (ModelOption) -> Unit,
     onDismiss: () -> Unit,
     onClearAllModels: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val recommended = remember { ModelOptions.recommend(context) }
-
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -77,7 +73,7 @@ fun ModelPickerDialog(
                     IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
                         Icon(
                             imageVector = Icons.Filled.Close,
-                            contentDescription = stringResource(R.string.cd_close_camera),
+                            contentDescription = stringResource(R.string.cd_close_model_picker),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp),
                         )
@@ -88,9 +84,9 @@ fun ModelPickerDialog(
                         .fillMaxWidth()
                         .weight(1f, fill = false),
                 ) {
-                    items(ModelOptions.all, key = { it.key }) { model ->
+                    items(models, key = { it.key }) { model ->
                         val isSelected = model.key == currentModel.key
-                        val isRecommended = model.key == recommended.key
+                        val isRecommended = model.key == recommendedModel.key
 
                         Surface(
                             modifier = Modifier
@@ -110,7 +106,7 @@ fun ModelPickerDialog(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            text = stringResource(model.nameResId),
+                                            text = model.name,
                                             style = MaterialTheme.typography.bodyLarge.copy(
                                                 fontWeight = if (isSelected) FontWeight.Bold
                                                 else FontWeight.Medium,
@@ -139,7 +135,7 @@ fun ModelPickerDialog(
                                     }
                                     Spacer(Modifier.height(2.dp))
                                     Text(
-                                        text = stringResource(model.descResId),
+                                        text = model.description,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )

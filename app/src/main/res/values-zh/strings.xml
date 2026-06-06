@@ -9,10 +9,11 @@
     <string name="action_clear">清除</string>
     <string name="copied_to_clipboard">已复制到剪贴板</string>
     <string name="translating">翻译中…</string>
+    <string name="live_translate">实时</string>
 
     <!-- i18n: Model management strings -->
     <string name="model_download_title">需要下载模型文件</string>
-    <string name="model_download_desc">首次使用需要下载翻译模型 (Hy-MT2-1.8B-Q4_K_M, ~1.1GB)</string>
+    <string name="model_download_desc">首次使用需要下载已选择的翻译模型 (%1$s, ~%2$.1fGB)</string>
     <string name="model_downloading">下载中: %1$.1f / %2$.1f MB</string>
     <string name="model_loading">加载模型中…</string>
     <string name="model_error">错误: %1$s</string>
@@ -35,6 +36,22 @@
     <string name="cd_swap_languages">交换源语言和目标语言</string>
     <string name="cd_clear_input">清除输入文本</string>
     <string name="cd_copy_result">复制翻译结果到剪贴板</string>
+    <string name="cd_live_translate_toggle">开关实时翻译</string>
+    <string name="cd_voice_input_toggle">开关语音输入</string>
+
+    <!-- i18n: AI asset strings -->
+    <string name="asset_asr_zipformer">语音输入模型</string>
+    <string name="asset_ocr_ppocrv5">OCR 模型</string>
+    <string name="asset_not_downloaded">需要下载%1$s</string>
+    <string name="asset_downloading">正在下载%1$s</string>
+    <string name="asset_error">%1$s错误: %2$s</string>
+    <string name="asset_download">下载</string>
+    <string name="ai_asset_download_notification_channel">AI 资源下载</string>
+    <string name="ai_asset_download_notification_title">正在下载 AI 资源</string>
+    <string name="ai_asset_download_notification_progress_title">资源下载中：%1$d%%</string>
+    <string name="ai_asset_download_notification_progress_text">%1$s • %2$.1f / %3$.1f MB</string>
+    <string name="ai_asset_download_notification_complete">AI 资源下载完成</string>
+    <string name="ai_asset_download_notification_error">AI 资源下载失败</string>
 
     <!-- i18n: OCR strings -->
     <string name="ocr_camera">拍照</string>
@@ -56,6 +73,7 @@
     <string name="model_q8_0_name">Hy-MT2-1.8B Q8_0</string>
     <string name="model_q8_0_desc">最大 1.9GB，质量最佳</string>
     <string name="model_select_title">选择模型</string>
+    <string name="cd_close_model_picker">关闭模型选择器</string>
     <string name="model_recommended">推荐</string>
     <string name="model_current">当前: %1$s</string>
     <string name="model_switch">切换模型</string>

@@ -2,10 +2,12 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="model_prefs.xml" />
+        <exclude domain="file" path="datastore/model_prefs.preferences_pb" />
         <exclude domain="file" path="models/" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="model_prefs.xml" />
+        <exclude domain="file" path="datastore/model_prefs.preferences_pb" />
         <exclude domain="file" path="models/" />
     </device-transfer>
 </data-extraction-rules>

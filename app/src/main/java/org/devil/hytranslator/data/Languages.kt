@@ -1,11 +1,10 @@
 package org.devil.hytranslator.data
 
-import org.devil.hytranslator.R
 import org.devil.hytranslator.domain.model.Language
 
 object Languages {
     val all = listOf(
-        Language("auto", R.string.lang_auto_detect),
+        Language("auto", "自动检测", "Auto"),
         Language("zh", "中文", "Chinese"),
         Language("en", "英语", "English"),
         Language("fr", "法语", "French"),

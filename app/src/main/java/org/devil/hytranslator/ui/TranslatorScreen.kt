@@ -1,11 +1,7 @@
 package org.devil.hytranslator.ui
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -43,6 +39,10 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -60,13 +60,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,23 +73,22 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.devil.hytranslator.R
-import org.devil.hytranslator.data.Languages
-import org.devil.hytranslator.data.ModelOptions
+import org.devil.hytranslator.domain.model.AiAsset
+import org.devil.hytranslator.domain.model.AiAssetState
 import org.devil.hytranslator.domain.model.DownloadProgress
 import org.devil.hytranslator.domain.model.Language
 import org.devil.hytranslator.domain.model.ModelOption
 import org.devil.hytranslator.domain.model.ModelStatus
-import org.devil.hytranslator.service.OcrEngine
+import org.devil.hytranslator.domain.model.VoiceInputState
 import org.devil.hytranslator.theme.InputTextStyle
 import org.devil.hytranslator.theme.OutputTextStyle
 
@@ -101,12 +98,31 @@ fun TranslatorScreen(
     onInputTextChange: (String) -> Unit,
     outputText: String,
     sourceLang: Language,
+    sourceLanguages: List<Language>,
     onSourceLangChange: (Language) -> Unit,
     targetLang: Language,
+    targetLanguages: List<Language>,
     onTargetLangChange: (Language) -> Unit,
+    isSwapEnabled: Boolean,
+    onSwapLanguages: () -> Unit,
     onTranslate: () -> Unit,
     onCancel: () -> Unit,
     isTranslating: Boolean,
+    isLiveTranslateEnabled: Boolean,
+    onLiveTranslateToggle: (Boolean) -> Unit,
+    voiceInputState: VoiceInputState,
+    asrAssetState: AiAssetState,
+    ocrAssetState: AiAssetState,
+    ocrFlow: OcrFlow,
+    onVoiceInputToggle: (Boolean) -> Unit,
+    onDownloadAiAsset: (AiAsset) -> Unit,
+    onStartOcr: () -> Unit,
+    onOcrBitmapCaptured: (Bitmap) -> Unit,
+    onOcrDismiss: () -> Unit,
+    onOcrRequestCamera: () -> Unit,
+    onOcrRequestGallery: () -> Unit,
+    onOcrTextConfirm: (String) -> Unit,
+    onOcrRetry: () -> Unit,
     modelStatus: ModelStatus,
     downloadProgress: DownloadProgress?,
     selectedModel: ModelOption,
@@ -115,36 +131,10 @@ fun TranslatorScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var showSourcePicker by remember { mutableStateOf(false) }
     var showTargetPicker by remember { mutableStateOf(false) }
     var showCopyToast by remember { mutableStateOf(false) }
     var swapRotation by remember { mutableFloatStateOf(0f) }
-
-    val ocrEngine = remember { OcrEngine() }
-    var ocrFlow by remember { mutableStateOf<OcrFlow>(OcrFlow.Hidden) }
-
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        if (granted) {
-            ocrFlow = OcrFlow.CameraActive
-        }
-    }
-
-    val galleryLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia(),
-    ) { uri ->
-        if (uri != null) {
-            scope.launch {
-                processBitmapFromUri(context, uri, ocrEngine) { ocrFlow = it }
-            }
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose { ocrEngine.close() }
-    }
 
     val animatedRotation by animateFloatAsState(
         targetValue = swapRotation,
@@ -158,38 +148,10 @@ fun TranslatorScreen(
         }
     }
 
-    val ocrFailedMsg = stringResource(R.string.ocr_failed)
-
-    val handleOcrBitmap: (Bitmap) -> Unit = { bitmap ->
-        ocrFlow = OcrFlow.Processing
-        scope.launch {
-            try {
-                val text = ocrEngine.recognize(bitmap)
-                ocrFlow = OcrFlow.Result(text)
-            } catch (e: Exception) {
-                ocrFlow = OcrFlow.Error(e.message ?: ocrFailedMsg)
-            }
-        }
-    }
-
-    val requestCamera: () -> Unit = {
-        ocrFlow = OcrFlow.Hidden
-        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-    }
-
-    val requestGallery: () -> Unit = {
-        ocrFlow = OcrFlow.Hidden
-        galleryLauncher.launch(
-            androidx.activity.result.PickVisualMediaRequest(
-                ActivityResultContracts.PickVisualMedia.ImageOnly,
-            ),
-        )
-    }
-
     if (showSourcePicker) {
         LanguagePickerDialog(
             title = stringResource(R.string.cd_source_lang_dropdown),
-            languages = Languages.sourceLanguages(),
+            languages = sourceLanguages,
             currentLang = sourceLang,
             onSelect = { lang ->
                 onSourceLangChange(lang)
@@ -202,7 +164,7 @@ fun TranslatorScreen(
     if (showTargetPicker) {
         LanguagePickerDialog(
             title = stringResource(R.string.cd_target_lang_dropdown),
-            languages = Languages.targetLanguages(),
+            languages = targetLanguages,
             currentLang = targetLang,
             onSelect = { lang ->
                 onTargetLangChange(lang)
@@ -221,10 +183,9 @@ fun TranslatorScreen(
                 onTargetClick = { showTargetPicker = true },
                 onSwap = {
                     swapRotation += 180f
-                    onSourceLangChange(targetLang)
-                    onTargetLangChange(sourceLang)
+                    onSwapLanguages()
                 },
-                swapEnabled = !Languages.isSourceOnly(sourceLang.code),
+                swapEnabled = isSwapEnabled,
                 animatedRotation = animatedRotation,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -243,8 +204,22 @@ fun TranslatorScreen(
                     modelReady = modelStatus is ModelStatus.Ready,
                     onTranslate = onTranslate,
                     onCancel = onCancel,
-                    onOcrClick = { ocrFlow = OcrFlow.SourcePicker },
+                    isLiveTranslateEnabled = isLiveTranslateEnabled,
+                    onLiveTranslateToggle = onLiveTranslateToggle,
+                    voiceInputState = voiceInputState,
+                    asrAssetState = asrAssetState,
+                    ocrAssetState = ocrAssetState,
+                    onVoiceInputToggle = onVoiceInputToggle,
+                    onDownloadAiAsset = onDownloadAiAsset,
+                    onOcrClick = onStartOcr,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+
+                AiAssetStatusMessages(
+                    asrAssetState = asrAssetState,
+                    ocrAssetState = ocrAssetState,
+                    onDownloadAiAsset = onDownloadAiAsset,
+                    modifier = Modifier.padding(horizontal = 16.dp),
                 )
 
                 AnimatedVisibility(
@@ -303,23 +278,20 @@ fun TranslatorScreen(
         }
 
         if (ocrFlow == OcrFlow.CameraActive) {
-            BackHandler { ocrFlow = OcrFlow.Hidden }
+            BackHandler { onOcrDismiss() }
             CameraCapture(
-                onCaptured = handleOcrBitmap,
-                onDismiss = { ocrFlow = OcrFlow.Hidden },
+                onCaptured = onOcrBitmapCaptured,
+                onDismiss = onOcrDismiss,
             )
         }
 
         OcrBottomSheet(
             ocrFlow = ocrFlow,
-            onDismiss = { ocrFlow = OcrFlow.Hidden },
-            onRequestCamera = requestCamera,
-            onRequestGallery = requestGallery,
-            onTextConfirm = { text ->
-                onInputTextChange(text)
-                ocrFlow = OcrFlow.Hidden
-            },
-            onRetry = { ocrFlow = OcrFlow.SourcePicker },
+            onDismiss = onOcrDismiss,
+            onRequestCamera = onOcrRequestCamera,
+            onRequestGallery = onOcrRequestGallery,
+            onTextConfirm = onOcrTextConfirm,
+            onRetry = onOcrRetry,
         )
 
         if (showCopyToast) {
@@ -343,50 +315,6 @@ fun TranslatorScreen(
             }
         }
     }
-}
-
-private suspend fun processBitmapFromUri(
-    context: android.content.Context,
-    uri: android.net.Uri,
-    ocrEngine: OcrEngine,
-    onFlow: (OcrFlow) -> Unit,
-) {
-    onFlow(OcrFlow.Processing)
-    try {
-        val bitmap = withContext(Dispatchers.IO) {
-            val inputStream = context.contentResolver.openInputStream(uri)
-                ?: throw Exception(context.getString(R.string.ocr_failed))
-            val raw = BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
-            raw ?: throw Exception(context.getString(R.string.ocr_failed))
-        }
-        val corrected = withContext(Dispatchers.IO) {
-            val inputStream = context.contentResolver.openInputStream(uri)
-                ?: return@withContext bitmap
-            val exif = androidx.exifinterface.media.ExifInterface(inputStream)
-            val orientation = exif.getAttributeInt(
-                androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
-                androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL,
-            )
-            inputStream.close()
-            rotateBitmap(bitmap, orientation)
-        }
-        val text = ocrEngine.recognize(corrected)
-        onFlow(OcrFlow.Result(text))
-    } catch (e: Exception) {
-        onFlow(OcrFlow.Error(e.message ?: context.getString(R.string.ocr_failed)))
-    }
-}
-
-private fun rotateBitmap(bitmap: Bitmap, orientation: Int): Bitmap {
-    val rotation = when (orientation) {
-        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-        else -> return bitmap
-    }
-    val matrix = Matrix().apply { postRotate(rotation) }
-    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
 }
 
 @Composable
@@ -444,11 +372,7 @@ private fun LanguageChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val displayName = if (language.nameResId != null) {
-        stringResource(language.nameResId)
-    } else {
-        language.name
-    }
+    val displayName = languageDisplayName(language)
 
     Surface(
         modifier = modifier.clickable(onClick = onClick),
@@ -488,9 +412,22 @@ private fun InputArea(
     modelReady: Boolean,
     onTranslate: () -> Unit,
     onCancel: () -> Unit,
+    isLiveTranslateEnabled: Boolean,
+    onLiveTranslateToggle: (Boolean) -> Unit,
+    voiceInputState: VoiceInputState,
+    asrAssetState: AiAssetState,
+    ocrAssetState: AiAssetState,
+    onVoiceInputToggle: (Boolean) -> Unit,
+    onDownloadAiAsset: (AiAsset) -> Unit,
     onOcrClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val liveTranslateContentDescription = stringResource(R.string.cd_live_translate_toggle)
+    val voiceInputContentDescription = stringResource(R.string.cd_voice_input_toggle)
+    val isVoiceInputListening = voiceInputState is VoiceInputState.Listening
+    val asrReady = asrAssetState is AiAssetState.Ready
+    val ocrReady = ocrAssetState is AiAssetState.Ready
+
     ElevatedCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -564,13 +501,66 @@ private fun InputArea(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
+                        onClick = {
+                            if (asrReady) {
+                                onVoiceInputToggle(!isVoiceInputListening)
+                            } else {
+                                onDownloadAiAsset(AiAsset.AsrStreamingZipformer)
+                            }
+                        },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .semantics {
+                                contentDescription = voiceInputContentDescription
+                            },
+                    ) {
+                        Icon(
+                            imageVector = if (isVoiceInputListening) {
+                                Icons.Filled.Mic
+                            } else {
+                                Icons.Filled.MicOff
+                            },
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                alpha = if (asrReady) 1f else 0.62f,
+                            ),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    IconButton(
+                        onClick = { onLiveTranslateToggle(!isLiveTranslateEnabled) },
+                        enabled = modelReady,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .semantics {
+                                contentDescription = liveTranslateContentDescription
+                            },
+                    ) {
+                        Icon(
+                            imageVector = if (isLiveTranslateEnabled) {
+                                Icons.Filled.FlashOn
+                            } else {
+                                Icons.Filled.FlashOff
+                            },
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                alpha = if (modelReady) 1f else 0.38f,
+                            ),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    IconButton(
                         onClick = onOcrClick,
                         modifier = Modifier.size(40.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Filled.CameraAlt,
                             contentDescription = stringResource(R.string.cd_ocr_button),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                alpha = if (ocrReady) 1f else 0.62f,
+                            ),
                             modifier = Modifier.size(20.dp),
                         )
                     }
@@ -606,6 +596,100 @@ private fun InputArea(
 }
 
 @Composable
+private fun AiAssetStatusMessages(
+    asrAssetState: AiAssetState,
+    ocrAssetState: AiAssetState,
+    onDownloadAiAsset: (AiAsset) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val visibleStates = listOf(
+        AiAsset.AsrStreamingZipformer to asrAssetState,
+        AiAsset.OcrPpOcrV5Mobile to ocrAssetState,
+    ).filterNot { (_, state) -> state is AiAssetState.Ready }
+
+    if (visibleStates.isEmpty()) return
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        visibleStates.forEach { (asset, state) ->
+            AiAssetStatusRow(
+                asset = asset,
+                state = state,
+                onDownload = { onDownloadAiAsset(asset) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun AiAssetStatusRow(
+    asset: AiAsset,
+    state: AiAssetState,
+    onDownload: () -> Unit,
+) {
+    val assetName = when (asset) {
+        AiAsset.AsrStreamingZipformer -> stringResource(R.string.asset_asr_zipformer)
+        AiAsset.OcrPpOcrV5Mobile -> stringResource(R.string.asset_ocr_ppocrv5)
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = when (state) {
+                        is AiAssetState.NotDownloaded -> stringResource(
+                            R.string.asset_not_downloaded,
+                            assetName,
+                        )
+                        is AiAssetState.Downloading -> stringResource(
+                            R.string.asset_downloading,
+                            assetName,
+                        )
+                        is AiAssetState.Error -> stringResource(
+                            R.string.asset_error,
+                            assetName,
+                            state.message,
+                        )
+                        AiAssetState.Ready -> assetName
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                if (state !is AiAssetState.Downloading) {
+                    TextButton(onClick = onDownload) {
+                        Text(stringResource(R.string.asset_download))
+                    }
+                }
+            }
+
+            val progress = (state as? AiAssetState.Downloading)?.progress
+            if (progress is DownloadProgress.Downloading && progress.total > 0L) {
+                LinearProgressIndicator(
+                    progress = { progress.downloaded.toFloat() / progress.total.toFloat() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else if (state is AiAssetState.Downloading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+@Composable
 private fun OutputCard(
     outputText: String,
     targetLang: Language,
@@ -613,11 +697,7 @@ private fun OutputCard(
     onCopy: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val displayName = if (targetLang.nameResId != null) {
-        stringResource(targetLang.nameResId)
-    } else {
-        targetLang.name
-    }
+    val displayName = languageDisplayName(targetLang)
 
     OutlinedCard(
         modifier = modifier.fillMaxWidth(),
@@ -709,7 +789,7 @@ private fun ModelInfoBar(
         Text(
             text = stringResource(
                 R.string.model_current,
-                stringResource(selectedModel.nameResId),
+                modelDisplayName(selectedModel),
             ),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
@@ -752,7 +832,11 @@ private fun StatusBanner(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = stringResource(R.string.model_download_desc),
+                        text = stringResource(
+                            R.string.model_download_desc,
+                            modelDisplayName(selectedModel),
+                            selectedModel.sizeGb,
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -764,7 +848,7 @@ private fun StatusBanner(
                         Text(
                             stringResource(
                                 R.string.model_download_confirm,
-                                stringResource(selectedModel.nameResId),
+                                modelDisplayName(selectedModel),
                             ),
                         )
                     }
@@ -776,10 +860,11 @@ private fun StatusBanner(
                         is DownloadProgress.Started -> downloadProgress.existing.toFloat() / 1_000_000f
                         else -> 0f
                     }
+                    val estimatedTotalMb = selectedModel.sizeGb * 1_000f
                     val totalMb = when (downloadProgress) {
                         is DownloadProgress.Downloading -> downloadProgress.total.toFloat() / 1_000_000f
                         is DownloadProgress.Started -> downloadProgress.total.toFloat() / 1_000_000f
-                        else -> 1130f
+                        else -> estimatedTotalMb
                     }
                     val progress = when (downloadProgress) {
                         is DownloadProgress.Downloading -> {
@@ -851,7 +936,7 @@ private fun StatusBanner(
                 Text(
                     text = stringResource(
                         R.string.model_current,
-                        stringResource(selectedModel.nameResId),
+                        modelDisplayName(selectedModel),
                     ),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -901,11 +986,7 @@ private fun LanguagePickerDialog(
                         .weight(1f, fill = false),
                 ) {
                     items(languages, key = { it.code }) { lang ->
-                        val displayName = if (lang.nameResId != null) {
-                            stringResource(lang.nameResId)
-                        } else {
-                            lang.name
-                        }
+                        val displayName = languageDisplayName(lang)
                         val isSelected = lang.code == currentLang.code
 
                         Row(
@@ -951,3 +1032,8 @@ private fun LanguagePickerDialog(
     }
 }
 
+@Composable
+private fun languageDisplayName(language: Language): String = language.name
+
+@Composable
+private fun modelDisplayName(model: ModelOption): String = model.name

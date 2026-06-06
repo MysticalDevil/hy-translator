@@ -1,28 +1,41 @@
 package org.devil.hytranslator.data.repository
 
 import android.content.Context
-import androidx.core.content.edit
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 import org.devil.hytranslator.data.ModelOptions
 import org.devil.hytranslator.domain.model.DownloadProgress
 import org.devil.hytranslator.domain.model.ModelOption
 import org.devil.hytranslator.domain.repository.ModelRepository
 import org.devil.hytranslator.service.ModelDownloader
 
+private val Context.modelPreferencesDataStore by preferencesDataStore(name = "model_prefs")
+
 class ModelRepositoryImpl(
     private val context: Context,
 ) : ModelRepository {
 
-    private val prefs = context.getSharedPreferences("model_prefs", 0)
     private var selectedModel: ModelOption = loadSelectedModel()
     private var downloader: ModelDownloader = ModelDownloader(context, selectedModel.filename)
 
+    override fun allModels(): List<ModelOption> = ModelOptions.all
+
     private fun loadSelectedModel(): ModelOption {
-        val savedKey = prefs.getString("model_key", null)
+        val savedKey = runBlocking(Dispatchers.IO) {
+            context.modelPreferencesDataStore.data
+                .map { preferences -> preferences[MODEL_KEY] }
+                .first()
+        }
         val model = savedKey
             ?.let { key -> ModelOptions.all.firstOrNull { it.key == key } }
             ?: getRecommended()
-        prefs.edit { putString("model_key", model.key) }
+        persistSelectedModel(model)
         return model
     }
 
@@ -38,7 +51,7 @@ class ModelRepositoryImpl(
 
     override fun selectModel(model: ModelOption) {
         selectedModel = model
-        prefs.edit { putString("model_key", model.key) }
+        persistSelectedModel(model)
         downloader = ModelDownloader(context, model.filename)
     }
 
@@ -47,5 +60,17 @@ class ModelRepositoryImpl(
         if (modelDir.isDirectory) {
             modelDir.listFiles()?.forEach { it.delete() }
         }
+    }
+
+    private fun persistSelectedModel(model: ModelOption) {
+        runBlocking(Dispatchers.IO) {
+            context.modelPreferencesDataStore.edit { preferences ->
+                preferences[MODEL_KEY] = model.key
+            }
+        }
+    }
+
+    private companion object {
+        val MODEL_KEY = stringPreferencesKey("model_key")
     }
 }

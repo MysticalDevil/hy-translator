@@ -1,12 +1,12 @@
 package org.devil.hytranslator.domain.repository
 
-import com.arm.aichat.InferenceEngine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import org.devil.hytranslator.domain.model.Language
+import org.devil.hytranslator.domain.model.TranslationEngineState
 
 interface TranslatorRepository {
-    val state: StateFlow<InferenceEngine.State>
+    val state: StateFlow<TranslationEngineState>
 
     fun isModelReady(): Boolean
 

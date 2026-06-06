@@ -23,7 +23,7 @@ import kotlin.math.roundToInt
 
 class ModelDownloadNotifier(
     private val context: Context,
-) {
+) : ModelDownloadNotifications {
     private val notificationManager =
         context.getSystemService(NotificationManager::class.java)
     private var lastProgressPercent = -1
@@ -75,7 +75,7 @@ class ModelDownloadNotifier(
         )
     }
 
-    fun showComplete() {
+    override fun showComplete() {
         if (!canPostNotifications()) return
         resetProgressThrottle()
         notificationManager.notify(
@@ -84,7 +84,7 @@ class ModelDownloadNotifier(
         )
     }
 
-    fun showError(message: String) {
+    override fun showError(message: String) {
         if (!canPostNotifications()) return
         resetProgressThrottle()
         notificationManager.notify(
@@ -205,7 +205,7 @@ class ModelDownloadNotifier(
         Notification.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.model_download_notification_title))
-            .setSubText(context.getString(model.nameResId))
+            .setSubText(model.name)
             .setContentIntent(contentIntent())
             .setLocalOnly(true)
 
@@ -269,6 +269,7 @@ class ModelDownloadNotifier(
 
     private fun canPostNotifications(): Boolean {
         if (!notificationManager.areNotificationsEnabled()) return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
         return ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.POST_NOTIFICATIONS,
@@ -280,7 +281,7 @@ class ModelDownloadNotifier(
         val totalMb = total / BYTES_PER_MB
         return context.getString(
             R.string.model_download_notification_progress_text,
-            context.getString(model.nameResId),
+            model.name,
             downloadedMb,
             totalMb,
         )

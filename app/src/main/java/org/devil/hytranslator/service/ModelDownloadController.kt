@@ -6,14 +6,14 @@ import org.devil.hytranslator.domain.model.ModelOption
 
 class ModelDownloadController(
     private val context: Context,
-) {
-    val state: StateFlow<ModelDownloadService.State> = ModelDownloadService.state
+) : ModelDownloadActions {
+    override val state: StateFlow<ModelDownloadService.State> = ModelDownloadService.state
 
-    fun start(model: ModelOption) {
+    override fun start(model: ModelOption) {
         ModelDownloadService.start(context, model)
     }
 
-    fun cancel() {
+    override fun cancel() {
         ModelDownloadService.cancel(context)
     }
 }

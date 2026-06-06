@@ -7,157 +7,232 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.devil.hytranslator.domain.model.DownloadProgress
+import org.devil.hytranslator.domain.model.AiAsset
+import org.devil.hytranslator.domain.model.AiAssetState
 import org.devil.hytranslator.domain.model.Language
 import org.devil.hytranslator.domain.model.ModelOption
 import org.devil.hytranslator.domain.model.ModelStatus
+import org.devil.hytranslator.domain.model.VoiceInputState
+import org.devil.hytranslator.domain.repository.AiAssetRepository
 import org.devil.hytranslator.domain.repository.LanguageRepository
 import org.devil.hytranslator.domain.repository.ModelRepository
 import org.devil.hytranslator.domain.repository.TranslatorRepository
-import org.devil.hytranslator.service.ModelDownloadController
-import org.devil.hytranslator.service.ModelDownloadNotifier
+import org.devil.hytranslator.service.AiAssetDownloadActions
+import org.devil.hytranslator.service.AiAssetDownloadService
+import org.devil.hytranslator.service.ModelDownloadActions
+import org.devil.hytranslator.service.ModelDownloadNotifications
 import org.devil.hytranslator.service.ModelDownloadService
 
 class TranslatorViewModel(
     private val translatorRepository: TranslatorRepository,
+    private val languageRepository: LanguageRepository,
     private val modelRepository: ModelRepository,
-    private val modelDownloadController: ModelDownloadController,
-    private val modelDownloadNotifier: ModelDownloadNotifier,
+    private val aiAssetRepository: AiAssetRepository,
+    private val modelDownloadController: ModelDownloadActions,
+    private val aiAssetDownloadController: AiAssetDownloadActions,
+    private val modelDownloadNotifier: ModelDownloadNotifications,
     private val modelLoadFailedMessage: String,
     private val cleanupScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) : ViewModel() {
+    private val compatibilitySharing = SharingStarted.Eagerly
+    private val initialSourceLang = languageRepository.sourceLanguages().first()
+    private val initialTargetLang = languageRepository.targetLanguages()
+        .first { it.code != "auto" }
+    private val initialSelectedModel = modelRepository.getSelectedModel()
 
-    private val languageRepository: LanguageRepository = object : LanguageRepository {
-        override fun allLanguages(): List<Language> =
-            org.devil.hytranslator.data.Languages.all
-        override fun sourceLanguages(): List<Language> =
-            org.devil.hytranslator.data.Languages.sourceLanguages()
-        override fun targetLanguages(): List<Language> =
-            org.devil.hytranslator.data.Languages.targetLanguages()
-        override fun isSourceOnly(code: String): Boolean =
-            org.devil.hytranslator.data.Languages.isSourceOnly(code)
-    }
-
-    private val _inputText = MutableStateFlow("")
-    val inputText: StateFlow<String> = _inputText.asStateFlow()
-
-    private val _outputText = MutableStateFlow("")
-    val outputText: StateFlow<String> = _outputText.asStateFlow()
-
-    private val _sourceLang = MutableStateFlow(languageRepository.sourceLanguages().first())
-    val sourceLang: StateFlow<Language> = _sourceLang.asStateFlow()
-
-    private val _targetLang = MutableStateFlow(
-        languageRepository.targetLanguages().first { it.code != "auto" },
+    private val _uiState = MutableStateFlow(
+        TranslatorUiState(
+            inputText = "",
+            outputText = "",
+            sourceLang = initialSourceLang,
+            targetLang = initialTargetLang,
+            isTranslating = false,
+            modelStatus = ModelStatus.NotDownloaded,
+            downloadProgress = null,
+            selectedModel = initialSelectedModel,
+        ),
     )
-    val targetLang: StateFlow<Language> = _targetLang.asStateFlow()
+    val uiState: StateFlow<TranslatorUiState> = _uiState.asStateFlow()
 
-    private val _isTranslating = MutableStateFlow(false)
-    val isTranslating: StateFlow<Boolean> = _isTranslating.asStateFlow()
+    val inputText: StateFlow<String> = uiState.map { it.inputText }
+        .stateIn(viewModelScope, compatibilitySharing, "")
 
-    private val _modelStatus = MutableStateFlow<ModelStatus>(ModelStatus.NotDownloaded)
-    val modelStatus: StateFlow<ModelStatus> = _modelStatus.asStateFlow()
+    val outputText: StateFlow<String> = uiState.map { it.outputText }
+        .stateIn(viewModelScope, compatibilitySharing, "")
 
-    private val _downloadProgress = MutableStateFlow<DownloadProgress?>(null)
-    val downloadProgress: StateFlow<DownloadProgress?> = _downloadProgress.asStateFlow()
+    val sourceLang: StateFlow<Language> = uiState.map { it.sourceLang }
+        .stateIn(viewModelScope, compatibilitySharing, initialSourceLang)
 
-    private var _selectedModel: ModelOption = modelRepository.getSelectedModel()
+    val targetLang: StateFlow<Language> = uiState.map { it.targetLang }
+        .stateIn(viewModelScope, compatibilitySharing, initialTargetLang)
 
-    private val _selectedModelFlow = MutableStateFlow(_selectedModel)
-    val selectedModel: StateFlow<ModelOption> = _selectedModelFlow.asStateFlow()
+    val isTranslating: StateFlow<Boolean> = uiState.map { it.isTranslating }
+        .stateIn(viewModelScope, compatibilitySharing, false)
+
+    val modelStatus: StateFlow<ModelStatus> = uiState.map { it.modelStatus }
+        .stateIn(
+            viewModelScope,
+            compatibilitySharing,
+            ModelStatus.NotDownloaded,
+        )
+
+    val downloadProgress = uiState.map { it.downloadProgress }
+        .stateIn(viewModelScope, compatibilitySharing, null)
+
+    val selectedModel: StateFlow<ModelOption> = uiState.map { it.selectedModel }
+        .stateIn(viewModelScope, compatibilitySharing, initialSelectedModel)
 
     private var generationJob: Job? = null
+    private var liveTranslateJob: Job? = null
     private var downloadJob: Job? = null
     private var loadJob: Job? = null
+    private var aiAssetJob: Job? = null
+    private var aiAssetServiceJob: Job? = null
     private var modelOperationId = 0L
+    private var translationOperationId = 0L
     private var initialized = false
     private var handledCompletedDownloadPath: String? = null
 
     fun initialize() {
         if (initialized) return
         initialized = true
+        aiAssetRepository.refresh(AiAsset.AsrStreamingZipformer)
+        aiAssetRepository.refresh(AiAsset.OcrPpOcrV5Mobile)
         observeDownloadService()
+        observeAiAssetDownloadService()
+        observeAiAssets()
         if (modelRepository.isModelDownloaded()) {
             loadModel()
         }
     }
 
+    fun onEvent(event: TranslatorEvent) {
+        when (event) {
+            is TranslatorEvent.InputChanged -> onInputTextChange(event.text)
+            is TranslatorEvent.SourceLanguageChanged -> onSourceLangChange(event.language)
+            is TranslatorEvent.TargetLanguageChanged -> onTargetLangChange(event.language)
+            is TranslatorEvent.ModelSelected -> onSelectModel(event.model)
+            is TranslatorEvent.LiveTranslateToggled -> onLiveTranslateToggled(event.enabled)
+            is TranslatorEvent.VoiceInputToggled -> onVoiceInputToggled(event.enabled)
+            is TranslatorEvent.AsrPartialReceived -> onAsrTextReceived(event.text)
+            is TranslatorEvent.AsrFinalReceived -> onAsrTextReceived(event.text)
+            is TranslatorEvent.RefreshAiAsset -> aiAssetRepository.refresh(event.asset)
+            is TranslatorEvent.DownloadAiAsset -> onDownloadAiAsset(event.asset)
+            TranslatorEvent.Translate -> onTranslate()
+            TranslatorEvent.CancelTranslation -> onCancel()
+            TranslatorEvent.DownloadModel -> onDownload()
+            TranslatorEvent.ClearAllModels -> onClearAllModels()
+            TranslatorEvent.SwapLanguages -> onSwapLanguages()
+        }
+    }
+
     fun onInputTextChange(text: String) {
-        _inputText.value = text
+        _uiState.update { it.copy(inputText = text) }
+        scheduleLiveTranslateIfEnabled()
     }
 
     fun onSourceLangChange(lang: Language) {
-        _sourceLang.value = lang
-        if (lang.code == _targetLang.value.code) {
-            _targetLang.value = languageRepository.targetLanguages()
-                .first { it.code != lang.code }
+        _uiState.update { state ->
+            val targetLang = if (lang.code == state.targetLang.code) {
+                languageRepository.targetLanguages().first { it.code != lang.code }
+            } else {
+                state.targetLang
+            }
+            state.copy(sourceLang = lang, targetLang = targetLang)
         }
+        scheduleLiveTranslateIfEnabled()
     }
 
     fun onTargetLangChange(lang: Language) {
-        _targetLang.value = lang
-        if (lang.code == _sourceLang.value.code &&
-            !languageRepository.isSourceOnly(_sourceLang.value.code)
-        ) {
-            _sourceLang.value = languageRepository.sourceLanguages()
-                .first { it.code != lang.code }
+        _uiState.update { state ->
+            val sourceLang = if (
+                lang.code == state.sourceLang.code &&
+                !languageRepository.isSourceOnly(state.sourceLang.code)
+            ) {
+                languageRepository.sourceLanguages().first { it.code != lang.code }
+            } else {
+                state.sourceLang
+            }
+            state.copy(sourceLang = sourceLang, targetLang = lang)
         }
+        scheduleLiveTranslateIfEnabled()
     }
 
     fun onTranslate() {
-        if (_inputText.value.isBlank() || !translatorRepository.isModelReady()) return
-        if (_isTranslating.value) return
-
-        _isTranslating.value = true
-        _outputText.value = ""
-        val text = _inputText.value
-        val sourceLang = _sourceLang.value
-        val targetLang = _targetLang.value
-        generationJob = viewModelScope.launch {
-            try {
-                translatorRepository.translate(
-                    text = text,
-                    sourceLang = sourceLang,
-                    targetLang = targetLang,
-                ).collect { token ->
-                    _outputText.update { it + token }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _modelStatus.value = ModelStatus.Error(
-                    e.message ?: modelLoadFailedMessage,
-                )
-            } finally {
-                _isTranslating.value = false
-                generationJob = null
-            }
-        }
+        liveTranslateJob?.cancel()
+        startTranslation(cancelRunning = true)
     }
 
     fun onCancel() {
+        liveTranslateJob?.cancel()
         generationJob?.cancel()
-        _isTranslating.value = false
+        _uiState.update { it.copy(isTranslating = false) }
         generationJob = null
     }
 
+    fun onLiveTranslateToggled(enabled: Boolean) {
+        _uiState.update { it.copy(isLiveTranslateEnabled = enabled) }
+        if (enabled) {
+            scheduleLiveTranslateIfEnabled()
+        } else {
+            liveTranslateJob?.cancel()
+            liveTranslateJob = null
+        }
+    }
+
+    fun onVoiceInputToggled(enabled: Boolean) {
+        if (!enabled) {
+            _uiState.update { it.copy(voiceInputState = VoiceInputState.Idle) }
+            return
+        }
+
+        val state = _uiState.value.asrAssetState
+        _uiState.update {
+            it.copy(
+                voiceInputState = if (state is AiAssetState.Ready) {
+                    VoiceInputState.Listening
+                } else {
+                    VoiceInputState.NeedsAsrModel
+                },
+            )
+        }
+    }
+
+    fun onAsrTextReceived(text: String) {
+        _uiState.update { it.copy(inputText = text) }
+        scheduleLiveTranslateIfEnabled()
+    }
+
+    fun onDownloadAiAsset(asset: AiAsset) {
+        observeAiAssetDownloadService()
+        aiAssetDownloadController.start(asset)
+    }
+
     fun onSelectModel(model: ModelOption) {
-        if (model.key == _selectedModel.key) return
+        if (model.key == _uiState.value.selectedModel.key) return
 
         val oldGenerationJob = generationJob
+        liveTranslateJob?.cancel()
         oldGenerationJob?.cancel()
         modelDownloadController.cancel()
         loadJob?.cancel()
         loadJob = null
-        _isTranslating.value = false
+        _uiState.update {
+            it.copy(
+                isTranslating = false,
+                selectedModel = model,
+            )
+        }
 
-        _selectedModel = model
-        _selectedModelFlow.value = model
         modelRepository.selectModel(model)
         val operationId = ++modelOperationId
 
@@ -169,10 +244,14 @@ class TranslatorViewModel(
     }
 
     fun onDownload() {
-        _modelStatus.value = ModelStatus.Downloading
-        _downloadProgress.value = null
+        _uiState.update {
+            it.copy(
+                modelStatus = ModelStatus.Downloading,
+                downloadProgress = null,
+            )
+        }
         observeDownloadService()
-        modelDownloadController.start(_selectedModel)
+        modelDownloadController.start(_uiState.value.selectedModel)
     }
 
     fun onClearAllModels() {
@@ -182,9 +261,13 @@ class TranslatorViewModel(
         loadJob?.cancel()
         loadJob = null
         ++modelOperationId
-        _isTranslating.value = false
-        _modelStatus.value = ModelStatus.NotDownloaded
-        _downloadProgress.value = null
+        _uiState.update {
+            it.copy(
+                isTranslating = false,
+                modelStatus = ModelStatus.NotDownloaded,
+                downloadProgress = null,
+            )
+        }
         loadJob = viewModelScope.launch {
             try {
                 oldGenerationJob?.join()
@@ -195,9 +278,7 @@ class TranslatorViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _modelStatus.value = ModelStatus.Error(
-                    e.message ?: modelLoadFailedMessage,
-                )
+                setModelStatus(ModelStatus.Error(e.message ?: modelLoadFailedMessage))
             } finally {
                 loadJob = null
             }
@@ -212,14 +293,18 @@ class TranslatorViewModel(
                 when (state) {
                     is ModelDownloadService.State.Idle -> {}
                     is ModelDownloadService.State.Downloading -> {
-                        if (state.model.key == _selectedModel.key) {
-                            _modelStatus.value = ModelStatus.Downloading
-                            _downloadProgress.value = state.progress
+                        if (state.model.key == _uiState.value.selectedModel.key) {
+                            _uiState.update {
+                                it.copy(
+                                    modelStatus = ModelStatus.Downloading,
+                                    downloadProgress = state.progress,
+                                )
+                            }
                         }
                     }
                     is ModelDownloadService.State.Completed -> {
                         if (
-                            state.model.key == _selectedModel.key &&
+                            state.model.key == _uiState.value.selectedModel.key &&
                             handledCompletedDownloadPath != state.path
                         ) {
                             handledCompletedDownloadPath = state.path
@@ -232,8 +317,8 @@ class TranslatorViewModel(
                         }
                     }
                     is ModelDownloadService.State.Error -> {
-                        if (state.model.key == _selectedModel.key) {
-                            _modelStatus.value = ModelStatus.Error(state.message)
+                        if (state.model.key == _uiState.value.selectedModel.key) {
+                            setModelStatus(ModelStatus.Error(state.message))
                         }
                     }
                 }
@@ -241,16 +326,80 @@ class TranslatorViewModel(
         }
     }
 
-    fun onSwapLanguages() {
-        val src = _sourceLang.value
-        val tgt = _targetLang.value
-        _sourceLang.value = tgt
-        _targetLang.value = src
+    private fun observeAiAssets() {
+        if (aiAssetJob?.isActive == true) return
+
+        aiAssetJob = viewModelScope.launch {
+            launch {
+                aiAssetRepository.state(AiAsset.AsrStreamingZipformer).collect { assetState ->
+                    _uiState.update {
+                        it.copy(
+                            asrAssetState = assetState,
+                            voiceInputState = if (
+                                it.voiceInputState is VoiceInputState.NeedsAsrModel &&
+                                assetState is AiAssetState.Ready
+                            ) {
+                                VoiceInputState.Idle
+                            } else {
+                                it.voiceInputState
+                            },
+                        )
+                    }
+                }
+            }
+            launch {
+                aiAssetRepository.state(AiAsset.OcrPpOcrV5Mobile).collect { assetState ->
+                    _uiState.update { it.copy(ocrAssetState = assetState) }
+                }
+            }
+        }
     }
 
-    fun isSwapEnabled(): Boolean = !languageRepository.isSourceOnly(_sourceLang.value.code)
+    private fun observeAiAssetDownloadService() {
+        if (aiAssetServiceJob?.isActive == true) return
+
+        aiAssetServiceJob = viewModelScope.launch {
+            aiAssetDownloadController.state.collect { state ->
+                when (state) {
+                    is AiAssetDownloadService.State.Idle -> {}
+                    is AiAssetDownloadService.State.Downloading -> {
+                        setAiAssetState(
+                            asset = state.asset,
+                            assetState = AiAssetState.Downloading(state.progress),
+                        )
+                    }
+                    is AiAssetDownloadService.State.Completed -> {
+                        aiAssetRepository.refresh(state.asset)
+                        setAiAssetState(state.asset, AiAssetState.Ready)
+                    }
+                    is AiAssetDownloadService.State.Error -> {
+                        setAiAssetState(
+                            asset = state.asset,
+                            assetState = AiAssetState.Error(state.message),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun onSwapLanguages() {
+        _uiState.update {
+            it.copy(
+                sourceLang = it.targetLang,
+                targetLang = it.sourceLang,
+            )
+        }
+    }
+
+    fun isSwapEnabled(): Boolean =
+        !languageRepository.isSourceOnly(_uiState.value.sourceLang.code)
 
     val allLanguages: List<Language> get() = languageRepository.allLanguages()
+    val sourceLanguages: List<Language> get() = languageRepository.sourceLanguages()
+    val targetLanguages: List<Language> get() = languageRepository.targetLanguages()
+    val allModels: List<ModelOption> get() = modelRepository.allModels()
+    val recommendedModel: ModelOption get() = modelRepository.getRecommended()
 
     override fun onCleared() {
         super.onCleared()
@@ -260,13 +409,13 @@ class TranslatorViewModel(
     }
 
     private fun loadModel(
-        model: ModelOption = _selectedModel,
+        model: ModelOption = _uiState.value.selectedModel,
         operationId: Long = ++modelOperationId,
         previousGenerationJob: Job? = null,
         showDownloadCompleteNotification: Boolean = false,
     ) {
         loadJob?.cancel()
-        _modelStatus.value = ModelStatus.Loading
+        setModelStatus(ModelStatus.Loading)
         val modelPath = modelRepository.getModelPath()
         loadJob = viewModelScope.launch {
             try {
@@ -275,9 +424,16 @@ class TranslatorViewModel(
                     translatorRepository.unloadModel()
                 }
                 translatorRepository.loadModel(modelPath)
-                if (operationId == modelOperationId && model.key == _selectedModel.key) {
-                    _modelStatus.value = ModelStatus.Ready
-                    _downloadProgress.value = null
+                if (operationId == modelOperationId &&
+                    model.key == _uiState.value.selectedModel.key
+                ) {
+                    _uiState.update {
+                        it.copy(
+                            modelStatus = ModelStatus.Ready,
+                            downloadProgress = null,
+                        )
+                    }
+                    scheduleLiveTranslateIfEnabled()
                     if (showDownloadCompleteNotification) {
                         modelDownloadNotifier.showComplete()
                     }
@@ -285,11 +441,11 @@ class TranslatorViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                if (operationId == modelOperationId && model.key == _selectedModel.key) {
+                if (operationId == modelOperationId &&
+                    model.key == _uiState.value.selectedModel.key
+                ) {
                     modelDownloadNotifier.showError(e.message ?: modelLoadFailedMessage)
-                    _modelStatus.value = ModelStatus.Error(
-                        e.message ?: modelLoadFailedMessage,
-                    )
+                    setModelStatus(ModelStatus.Error(e.message ?: modelLoadFailedMessage))
                 }
             } finally {
                 if (operationId == modelOperationId) {
@@ -304,24 +460,30 @@ class TranslatorViewModel(
         operationId: Long,
         previousGenerationJob: Job?,
     ) {
-        _modelStatus.value = ModelStatus.NotDownloaded
-        _downloadProgress.value = null
+        _uiState.update {
+            it.copy(
+                modelStatus = ModelStatus.NotDownloaded,
+                downloadProgress = null,
+            )
+        }
         loadJob = viewModelScope.launch {
             try {
                 previousGenerationJob?.join()
                 if (translatorRepository.isModelReady()) {
                     translatorRepository.unloadModel()
                 }
-                if (operationId == modelOperationId && model.key == _selectedModel.key) {
-                    _modelStatus.value = ModelStatus.NotDownloaded
+                if (operationId == modelOperationId &&
+                    model.key == _uiState.value.selectedModel.key
+                ) {
+                    setModelStatus(ModelStatus.NotDownloaded)
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                if (operationId == modelOperationId && model.key == _selectedModel.key) {
-                    _modelStatus.value = ModelStatus.Error(
-                        e.message ?: modelLoadFailedMessage,
-                    )
+                if (operationId == modelOperationId &&
+                    model.key == _uiState.value.selectedModel.key
+                ) {
+                    setModelStatus(ModelStatus.Error(e.message ?: modelLoadFailedMessage))
                 }
             } finally {
                 if (operationId == modelOperationId) {
@@ -329,5 +491,84 @@ class TranslatorViewModel(
                 }
             }
         }
+    }
+
+    private fun setModelStatus(status: ModelStatus) {
+        _uiState.update { it.copy(modelStatus = status) }
+    }
+
+    private fun setAiAssetState(asset: AiAsset, assetState: AiAssetState) {
+        _uiState.update {
+            when (asset) {
+                AiAsset.AsrStreamingZipformer -> it.copy(
+                    asrAssetState = assetState,
+                    voiceInputState = if (
+                        it.voiceInputState is VoiceInputState.NeedsAsrModel &&
+                        assetState is AiAssetState.Ready
+                    ) {
+                        VoiceInputState.Idle
+                    } else {
+                        it.voiceInputState
+                    },
+                )
+                AiAsset.OcrPpOcrV5Mobile -> it.copy(ocrAssetState = assetState)
+            }
+        }
+    }
+
+    private fun scheduleLiveTranslateIfEnabled() {
+        liveTranslateJob?.cancel()
+        val state = _uiState.value
+        if (!state.isLiveTranslateEnabled) return
+        if (state.inputText.isBlank()) return
+        if (state.modelStatus !is ModelStatus.Ready) return
+        if (!translatorRepository.isModelReady()) return
+
+        liveTranslateJob = viewModelScope.launch {
+            delay(LIVE_TRANSLATE_DEBOUNCE_MS)
+            startTranslation(cancelRunning = true)
+        }
+    }
+
+    private fun startTranslation(cancelRunning: Boolean) {
+        val state = _uiState.value
+        if (state.inputText.isBlank() || !translatorRepository.isModelReady()) return
+
+        val activeGenerationJob = generationJob
+        if (activeGenerationJob?.isActive == true) {
+            if (!cancelRunning) return
+            activeGenerationJob.cancel()
+        }
+
+        val operationId = ++translationOperationId
+        _uiState.update { it.copy(isTranslating = true, outputText = "") }
+        generationJob = viewModelScope.launch {
+            try {
+                translatorRepository.translate(
+                    text = state.inputText,
+                    sourceLang = state.sourceLang,
+                    targetLang = state.targetLang,
+                ).collect { token ->
+                    if (operationId == translationOperationId) {
+                        _uiState.update { it.copy(outputText = it.outputText + token) }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (operationId == translationOperationId) {
+                    setModelStatus(ModelStatus.Error(e.message ?: modelLoadFailedMessage))
+                }
+            } finally {
+                if (operationId == translationOperationId) {
+                    _uiState.update { it.copy(isTranslating = false) }
+                    generationJob = null
+                }
+            }
+        }
+    }
+
+    private companion object {
+        const val LIVE_TRANSLATE_DEBOUNCE_MS = 600L
     }
 }

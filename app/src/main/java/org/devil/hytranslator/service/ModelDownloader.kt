@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.devil.hytranslator.R
 import org.devil.hytranslator.domain.model.DownloadProgress
 import java.io.File
 import java.io.FileOutputStream
@@ -35,7 +36,7 @@ class ModelDownloader(
     fun isModelDownloaded(): Boolean = modelFile.exists() && modelFile.length() > 100_000_000L
 
     fun download(): Flow<DownloadProgress> = flow {
-        val url = "${HF_BASE_URL}${filename}?download=true"
+        val url = "${context.getString(R.string.url_hy_mt2_gguf_base)}$filename?download=true"
         val tmpFile = File(modelDir, "$filename.tmp")
 
         var existingSize = tmpFile.takeIf { it.exists() }?.length() ?: 0L
@@ -100,7 +101,4 @@ class ModelDownloader(
         }
     }.flowOn(Dispatchers.IO)
 
-    companion object {
-        const val HF_BASE_URL = "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/main/"
-    }
 }

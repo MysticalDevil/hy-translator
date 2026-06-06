@@ -8,10 +8,11 @@
     <string name="action_clear">Clear</string>
     <string name="copied_to_clipboard">Copied to clipboard</string>
     <string name="translating">Translating…</string>
+    <string name="live_translate">Live</string>
 
     <!-- i18n: Model management strings -->
     <string name="model_download_title">Model download required</string>
-    <string name="model_download_desc">First-time use requires downloading the translation model (Hy-MT2-1.8B-Q4_K_M, ~1.1GB)</string>
+    <string name="model_download_desc">First-time use requires downloading the selected translation model (%1$s, ~%2$.1fGB)</string>
     <string name="model_downloading">Downloading: %1$.1f / %2$.1f MB</string>
     <string name="model_loading">Loading model…</string>
     <string name="model_error">Error: %1$s</string>
@@ -34,6 +35,22 @@
     <string name="cd_swap_languages">Swap source and target languages</string>
     <string name="cd_clear_input">Clear input text</string>
     <string name="cd_copy_result">Copy translation result to clipboard</string>
+    <string name="cd_live_translate_toggle">Toggle live translation</string>
+    <string name="cd_voice_input_toggle">Toggle voice input</string>
+
+    <!-- i18n: AI asset strings -->
+    <string name="asset_asr_zipformer">Voice input model</string>
+    <string name="asset_ocr_ppocrv5">OCR model</string>
+    <string name="asset_not_downloaded">%1$s required</string>
+    <string name="asset_downloading">Downloading %1$s</string>
+    <string name="asset_error">%1$s error: %2$s</string>
+    <string name="asset_download">Download</string>
+    <string name="ai_asset_download_notification_channel">AI asset downloads</string>
+    <string name="ai_asset_download_notification_title">Downloading AI asset</string>
+    <string name="ai_asset_download_notification_progress_title">Downloading asset: %1$d%%</string>
+    <string name="ai_asset_download_notification_progress_text">%1$s • %2$.1f / %3$.1f MB</string>
+    <string name="ai_asset_download_notification_complete">AI asset download complete</string>
+    <string name="ai_asset_download_notification_error">AI asset download failed</string>
 
     <!-- i18n: OCR strings -->
     <string name="ocr_camera">Camera</string>
@@ -55,6 +72,7 @@
     <string name="model_q8_0_name">Hy-MT2-1.8B Q8_0</string>
     <string name="model_q8_0_desc">Largest 1.9GB, best quality</string>
     <string name="model_select_title">Select Model</string>
+    <string name="cd_close_model_picker">Close model picker</string>
     <string name="model_recommended">Recommended</string>
     <string name="model_current">Current: %1$s</string>
     <string name="model_switch">Switch Model</string>
