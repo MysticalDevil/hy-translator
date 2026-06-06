@@ -105,7 +105,7 @@ class AiAssetDownloadNotifier(
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.ai_asset_download_notification_complete))
             .setContentText(assetName(asset))
-            .setContentIntent(contentIntent())
+            .setContentIntent(contentIntent(asset))
             .setAutoCancel(true)
             .build()
 
@@ -114,7 +114,7 @@ class AiAssetDownloadNotifier(
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.ai_asset_download_notification_error))
             .setContentText(context.getString(R.string.asset_error, assetName(asset), message))
-            .setContentIntent(contentIntent())
+            .setContentIntent(contentIntent(asset))
             .addAction(retryAction(asset))
             .setAutoCancel(true)
             .build()
@@ -124,7 +124,7 @@ class AiAssetDownloadNotifier(
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.ai_asset_download_notification_title))
             .setSubText(assetName(asset))
-            .setContentIntent(contentIntent())
+            .setContentIntent(contentIntent(asset))
             .setLocalOnly(true)
 
     @RequiresApi(Build.VERSION_CODES.BAKLAVA)
@@ -192,12 +192,17 @@ class AiAssetDownloadNotifier(
             ),
         ).build()
 
-    private fun contentIntent(): PendingIntent =
+    private fun contentIntent(asset: AiAsset): PendingIntent =
         PendingIntent.getActivity(
             context,
-            0,
+            notificationId(asset),
             Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(
+                    NotificationNavigation.EXTRA_TARGET,
+                    NotificationNavigation.TARGET_AI_ASSET_DOWNLOAD,
+                )
+                putExtra(NotificationNavigation.EXTRA_AI_ASSET, asset.name)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )

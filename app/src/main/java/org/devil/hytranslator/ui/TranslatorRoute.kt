@@ -26,10 +26,13 @@ import org.devil.hytranslator.HyTranslatorApplication
 import org.devil.hytranslator.R
 import org.devil.hytranslator.domain.model.AiAsset
 import org.devil.hytranslator.domain.model.AiAssetState
+import org.devil.hytranslator.service.NotificationDestination
 
 @Composable
 fun TranslatorRoute(
     modifier: Modifier = Modifier,
+    notificationDestination: NotificationDestination? = null,
+    onNotificationDestinationConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val appContainer = (context.applicationContext as HyTranslatorApplication).appContainer
@@ -68,6 +71,15 @@ fun TranslatorRoute(
 
     LaunchedEffect(viewModel) {
         viewModel.initialize()
+    }
+
+    LaunchedEffect(notificationDestination) {
+        when (notificationDestination) {
+            is NotificationDestination.ModelDownload -> showModelPicker = true
+            is NotificationDestination.AiAssetDownload -> Unit
+            null -> return@LaunchedEffect
+        }
+        onNotificationDestinationConsumed()
     }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(

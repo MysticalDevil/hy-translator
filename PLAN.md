@@ -106,8 +106,9 @@
   AI 资源下载状态已按 asset 独立持久化，ViewModel 也按 ASR/OCR 分别观察状态。
   `AiAssetDownloadService` 已按 asset 管理下载 job，支持 ASR/OCR 并发下载和分别取消。
   后续还要补 notification action instrumentation 和进程恢复验收。
-- 通知动作已覆盖取消、打开 App 和失败后重试；后续还缺跳转到对应资源/模型状态的显式 deep link
-  和通知动作 instrumentation 测试。
+- 通知动作已覆盖取消、打开 App 和失败后重试；通知 content intent 已携带模型/AI
+  资源下载目标上下文，模型下载通知会打开模型选择入口。后续还缺 AI 资源区域高亮/滚动和
+  通知动作 instrumentation 测试。
 - UI 取消、通知取消、模型切换、清理资源和 service 自身失败之间还没有完整双向绑定；
   `TranslatorViewModel` 已收集持久化下载状态并按 AI asset 分别映射 UI 状态，但模型下载完成后的
   加载/通知语义仍依赖 App 进程存活。
@@ -313,7 +314,8 @@ DI 默认决策：
   - UI 取消必须撤销 foreground notification。
   - 通知完成必须触发 repository refresh/load，并让 UI 进入 Ready/Loading/Error。
   - 通知失败必须暴露 typed error，UI 显示明确重试入口。
-  - 失败通知已提供直接重试动作；后续需要补 action instrumentation 覆盖。
+  - 失败通知已提供直接重试动作；通知 content intent 已携带模型/AI 资源目标上下文。
+    后续需要补 action instrumentation 覆盖。
   - 切换模型会取消模型下载并停止 ASR runtime；清理模型会取消模型下载、AI 资源下载
     和 ASR runtime。后续补真机通知动作验证。
 - 评估并落地 Google 推荐的用户发起数据传输方案：

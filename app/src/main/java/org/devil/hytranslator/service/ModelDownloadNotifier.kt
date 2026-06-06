@@ -182,7 +182,7 @@ class ModelDownloadNotifier(
             .setContentText(
                 context.getString(R.string.model_download_notification_error, message),
             )
-            .setContentIntent(contentIntent())
+            .setContentIntent(model?.let(::contentIntent) ?: contentIntent())
             .setAutoCancel(true)
         model?.let { builder.addAction(retryAction(it)) }
         return builder.build()
@@ -212,7 +212,7 @@ class ModelDownloadNotifier(
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.model_download_notification_title))
             .setSubText(model.name)
-            .setContentIntent(contentIntent())
+            .setContentIntent(contentIntent(model))
             .setLocalOnly(true)
 
     @RequiresApi(Build.VERSION_CODES.BAKLAVA)
@@ -277,12 +277,19 @@ class ModelDownloadNotifier(
             ),
         ).build()
 
-    private fun contentIntent(): PendingIntent =
+    private fun contentIntent(model: ModelOption? = null): PendingIntent =
         PendingIntent.getActivity(
             context,
             0,
             Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(
+                    NotificationNavigation.EXTRA_TARGET,
+                    NotificationNavigation.TARGET_MODEL_DOWNLOAD,
+                )
+                model?.let {
+                    putExtra(NotificationNavigation.EXTRA_MODEL_KEY, it.key)
+                }
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
