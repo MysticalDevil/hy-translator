@@ -98,7 +98,7 @@ class ModelDownloadService : Service() {
                         is DownloadProgress.Completed -> {
                             terminalStateReached = true
                             stateStore.setCompleted(model, progress.path)
-                            notifier.showLoading(model)
+                            notifier.showComplete(model)
                             stopForeground(STOP_FOREGROUND_DETACH)
                             stopSelf()
                         }
@@ -138,7 +138,7 @@ class ModelDownloadService : Service() {
                 downloaded = progress.downloaded,
                 total = progress.total,
             )
-            is DownloadProgress.Completed -> notifier.loadingNotification(model)
+            is DownloadProgress.Completed -> notifier.completeNotification(model)
             is DownloadProgress.Error -> notifier.errorNotification(progress.message)
         }
         ServiceCompat.startForeground(

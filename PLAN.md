@@ -111,9 +111,10 @@
   资源状态行。后续还缺滚动定位和通知动作 instrumentation 测试。
 - UI 取消、通知取消、模型切换、清理资源和 service 自身失败之间还没有完整双向绑定；
   `TranslatorViewModel` 已收集持久化下载状态并按 AI asset 分别映射 UI 状态，但模型下载完成后的
-  加载/通知语义仍依赖 App 进程存活。
-- 模型下载完成后由 service 发出 Completed，ViewModel 再加载模型并补发完成通知；
-  这个链路仍依赖 App 进程存活。进程死亡或 Activity 不存在时不会恢复“下载完成后加载/提示”的语义。
+  自动加载语义仍依赖 App 进程存活。
+- 模型下载完成后由 service 持久化 Completed 并显示明确的下载完成通知；ViewModel 在 App
+  存活或下次启动观察到 Completed 后加载模型并补发完成通知。后续仍要补进程死亡恢复验收，
+  确认“下载完成但尚未加载”状态对用户可解释。
 - `onSelectModel()` 会取消当前模型下载、停止 ASR runtime，但保留独立的 ASR/OCR
   资源下载；`onClearAllModels()` 会取消模型下载、AI 资源下载和 ASR runtime。
   后续仍要补对应 notification action instrumentation 和真机验收。

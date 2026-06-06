@@ -61,7 +61,7 @@ class ModelDownloadNotifier(
                 total = progress.total,
             )
 
-            is DownloadProgress.Completed -> showLoading(model)
+            is DownloadProgress.Completed -> showComplete(model)
             is DownloadProgress.Error -> showError(progress.message)
         }
     }
@@ -76,11 +76,15 @@ class ModelDownloadNotifier(
     }
 
     override fun showComplete() {
+        showComplete(model = null)
+    }
+
+    fun showComplete(model: ModelOption?) {
         if (!canPostNotifications()) return
         resetProgressThrottle()
         notificationManager.notify(
             NOTIFICATION_ID,
-            completeNotification(),
+            completeNotification(model),
         )
     }
 
@@ -167,13 +171,15 @@ class ModelDownloadNotifier(
             .setColor(NOTIFICATION_COLOR)
             .build()
 
-    fun completeNotification(): Notification =
-        Notification.Builder(context, CHANNEL_ID)
+    fun completeNotification(model: ModelOption? = null): Notification {
+        val builder = Notification.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.model_download_notification_complete))
-            .setContentIntent(contentIntent())
+            .setContentIntent(contentIntent(model))
             .setAutoCancel(true)
-            .build()
+        model?.let { builder.setSubText(it.name) }
+        return builder.build()
+    }
 
     fun errorNotification(message: String, model: ModelOption? = null): Notification {
         val builder = Notification.Builder(context, CHANNEL_ID)
