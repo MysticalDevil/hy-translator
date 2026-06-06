@@ -136,8 +136,8 @@
 - PaddleOCR adapter 已完成 runtime 初始化、模型文件校验、label 文件校验、det/rec
   predictor 创建和 EXIF 旋转沿用。当前已接入 rec predictor 的整图单行识别路径：
   bitmap resize/normalize、Tensor 输入、`predictor.run()` 和 CTC decode 已有单测覆盖。
-- 仍缺 det bitmap 预处理、det 后处理、rec crop/resize 多框循环、文本框排序、typed error
-  收敛、instrumented OCR smoke 测试和真机验证。
+- det resize/stride 对齐计划已补纯 JVM 测试；仍缺 det bitmap 像素归一化、det 后处理、
+  rec crop/resize 多框循环、文本框排序、typed error 收敛、instrumented OCR smoke 测试和真机验证。
 
 ### ASR
 

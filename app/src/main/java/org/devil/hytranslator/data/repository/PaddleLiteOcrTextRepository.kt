@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 import org.devil.hytranslator.platform.ocr.OcrTextRepository
 import java.io.File
 import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 class PaddleLiteOcrTextRepository(
     private val context: Context,
@@ -222,6 +223,53 @@ object PaddleOcrRecognitionPreprocessor {
     }
 
     private fun normalize(channel: Int): Float = (channel / 255f - 0.5f) / 0.5f
+}
+
+data class PaddleOcrDetectionResize(
+    val width: Int,
+    val height: Int,
+    val ratioWidth: Float,
+    val ratioHeight: Float,
+)
+
+object PaddleOcrDetectionPreprocessor {
+    fun resizePlan(
+        sourceWidth: Int,
+        sourceHeight: Int,
+        maxSideLength: Int = DEFAULT_MAX_SIDE_LENGTH,
+    ): PaddleOcrDetectionResize {
+        require(sourceWidth > 0 && sourceHeight > 0) {
+            "PaddleOCR detection input bitmap is empty"
+        }
+        require(maxSideLength >= MODEL_STRIDE) {
+            "PaddleOCR detection max side must be at least $MODEL_STRIDE"
+        }
+
+        val scale = if (sourceWidth > sourceHeight) {
+            maxSideLength.toFloat() / sourceWidth.toFloat()
+        } else {
+            maxSideLength.toFloat() / sourceHeight.toFloat()
+        }.coerceAtMost(1f)
+
+        val resizedWidth = alignToStride((sourceWidth * scale).roundToInt())
+        val resizedHeight = alignToStride((sourceHeight * scale).roundToInt())
+
+        return PaddleOcrDetectionResize(
+            width = resizedWidth,
+            height = resizedHeight,
+            ratioWidth = resizedWidth.toFloat() / sourceWidth.toFloat(),
+            ratioHeight = resizedHeight.toFloat() / sourceHeight.toFloat(),
+        )
+    }
+
+    private fun alignToStride(value: Int): Int =
+        value
+            .coerceAtLeast(MODEL_STRIDE)
+            .let { aligned -> ((aligned + MODEL_STRIDE / 2) / MODEL_STRIDE) * MODEL_STRIDE }
+            .coerceAtLeast(MODEL_STRIDE)
+
+    private const val DEFAULT_MAX_SIDE_LENGTH = 960
+    private const val MODEL_STRIDE = 32
 }
 
 object PaddleOcrCtcDecoder {

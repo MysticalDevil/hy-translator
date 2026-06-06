@@ -104,6 +104,44 @@ class PaddleLiteOcrTextRepositoryTest {
         )
     }
 
+    @Test
+    fun detectionResizePlan_downscalesLongestSideAndAlignsToStride() {
+        val resize = PaddleOcrDetectionPreprocessor.resizePlan(
+            sourceWidth = 1920,
+            sourceHeight = 1080,
+        )
+
+        assertEquals(960, resize.width)
+        assertEquals(544, resize.height)
+        assertEquals(0.5f, resize.ratioWidth, 0.0001f)
+        assertEquals(544f / 1080f, resize.ratioHeight, 0.0001f)
+    }
+
+    @Test
+    fun detectionResizePlan_keepsSmallImagesButAlignsToStride() {
+        val resize = PaddleOcrDetectionPreprocessor.resizePlan(
+            sourceWidth = 321,
+            sourceHeight = 240,
+        )
+
+        assertEquals(320, resize.width)
+        assertEquals(224, resize.height)
+        assertEquals(320f / 321f, resize.ratioWidth, 0.0001f)
+        assertEquals(224f / 240f, resize.ratioHeight, 0.0001f)
+    }
+
+    @Test
+    fun detectionResizePlan_rejectsEmptyInput() {
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            PaddleOcrDetectionPreprocessor.resizePlan(
+                sourceWidth = 0,
+                sourceHeight = 240,
+            )
+        }
+
+        assertEquals("PaddleOCR detection input bitmap is empty", error.message)
+    }
+
     private fun createOcrFiles(labels: String) {
         val dir = File(temporaryFolder.root, "ai-assets/pp-ocrv5-mobile")
         check(dir.mkdirs())
