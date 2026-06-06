@@ -130,7 +130,8 @@
 - `SherpaOnnxVoiceInputRepository` 是占位实现，只返回
   `sherpa-onnx streaming runtime is not integrated yet`，没有 sherpa-onnx runtime、
   JNI/native libs、模型加载或音频流。
-- Manifest 还没有 `RECORD_AUDIO` 权限，Route 层也没有录音权限请求闭环。
+- Manifest 已声明 `RECORD_AUDIO`，Route 层已接入录音权限请求；权限拒绝会进入
+  `VoiceInputState.Error`。后续还要补 instrumented 权限测试。
 - Gradle 依赖中尚无 sherpa-onnx/onnxruntime Android 集成。
 - `VoiceInputRepository.start()` 目前只返回单个 `VoiceInputState`，不足以表达 streaming
   partial/final result、音量/监听状态、采集错误和 runtime 关闭事件；需要改为 Flow 或 callback
@@ -411,7 +412,8 @@ DI 默认决策：
   - 第一版设备目标为 `arm64-v8a`。
 - ASR 可用性验收：
   - 未下载 ASR 资源时点击麦克风只触发资源下载或明确下载入口。
-  - ASR 资源 ready 后点击麦克风请求 `RECORD_AUDIO` 权限并进入 Listening。
+  - ASR 资源 ready 后点击麦克风请求 `RECORD_AUDIO` 权限并进入 Listening；权限拒绝路径已进入
+    UI error，后续补设备测试。
   - partial result 实时更新输入框。
   - final result 固化输入框，并在实时翻译开启时触发输出。
   - 通知/后台/切屏不应破坏正在进行的资源下载。
@@ -419,7 +421,7 @@ DI 默认决策：
 - 录音链路使用 `AudioRecord` adapter：
   - 采集 16 kHz mono PCM。
   - UI 通过麦克风 icon button 触发。
-  - `RECORD_AUDIO` 权限由 Route 层处理。
+  - `RECORD_AUDIO` 权限由 Route 层处理；当前已完成权限声明、请求和拒绝状态映射。
   - partial result 实时写入输入框，并复用实时翻译开关触发输出。
 - 资源下载复用模型下载的后台任务和通知实践：
   - 下载进度、失败、校验失败、完成状态使用统一 domain model。

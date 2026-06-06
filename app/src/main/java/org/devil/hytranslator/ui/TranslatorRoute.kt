@@ -48,6 +48,7 @@ fun TranslatorRoute(
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val ocrFailedMessage = stringResource(R.string.ocr_failed)
+    val voiceInputPermissionDeniedMessage = stringResource(R.string.voice_input_permission_denied)
     val ocrWorkflowController = remember(scope) {
         OcrWorkflowController(
             scope = scope,
@@ -87,6 +88,18 @@ fun TranslatorRoute(
     ) { granted ->
         if (granted) {
             ocrWorkflowController.showCamera()
+        }
+    }
+
+    val recordAudioPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            viewModel.onEvent(TranslatorEvent.VoiceInputToggled(true))
+        } else {
+            viewModel.onEvent(
+                TranslatorEvent.VoiceInputPermissionDenied(voiceInputPermissionDeniedMessage),
+            )
         }
     }
 
@@ -184,7 +197,15 @@ fun TranslatorRoute(
         ocrAssetState = uiState.ocrAssetState,
         ocrFlow = ocrFlow,
         onVoiceInputToggle = { enabled ->
-            viewModel.onEvent(TranslatorEvent.VoiceInputToggled(enabled))
+            if (!enabled) {
+                viewModel.onEvent(TranslatorEvent.VoiceInputToggled(false))
+            } else if (uiState.asrAssetState !is AiAssetState.Ready) {
+                viewModel.onEvent(TranslatorEvent.VoiceInputToggled(true))
+            } else if (shouldRequestRecordAudioPermission(context)) {
+                recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            } else {
+                viewModel.onEvent(TranslatorEvent.VoiceInputToggled(true))
+            }
         },
         onDownloadAiAsset = startAiAssetDownload,
         onStartOcr = {
@@ -220,5 +241,11 @@ private fun shouldRequestNotificationPermission(context: android.content.Context
             context,
             Manifest.permission.POST_NOTIFICATIONS,
         ) != PackageManager.PERMISSION_GRANTED
+
+private fun shouldRequestRecordAudioPermission(context: android.content.Context): Boolean =
+    ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.RECORD_AUDIO,
+    ) != PackageManager.PERMISSION_GRANTED
 
 private const val TRANSLATE_CLICK_DEBOUNCE_MS = 500L

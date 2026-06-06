@@ -40,6 +40,7 @@
     <string name="cd_live_translate_toggle">开关实时翻译</string>
     <string name="cd_voice_input_toggle">开关语音输入</string>
     <string name="voice_input_error">语音输入不可用: %1$s</string>
+    <string name="voice_input_permission_denied">麦克风权限已拒绝</string>
 
     <!-- i18n: AI asset strings -->
     <string name="asset_asr_zipformer">语音输入模型</string>

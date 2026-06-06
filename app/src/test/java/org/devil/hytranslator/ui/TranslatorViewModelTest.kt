@@ -241,6 +241,20 @@ class TranslatorViewModelTest {
     }
 
     @Test
+    fun voiceInputPermissionDenied_stopsRuntimeAndShowsError() = runTest {
+        val voiceInputRepository = FakeVoiceInputRepository()
+        val viewModel = createViewModel(voiceInputRepository = voiceInputRepository)
+
+        viewModel.onEvent(TranslatorEvent.VoiceInputPermissionDenied("permission denied"))
+
+        assertTrue(voiceInputRepository.stopped)
+        assertEquals(
+            VoiceInputState.Error("permission denied"),
+            viewModel.uiState.value.voiceInputState,
+        )
+    }
+
+    @Test
     fun refreshAiAsset_routesToAssetRepository() = runTest {
         val aiAssetRepository = FakeAiAssetRepository()
         val viewModel = createViewModel(aiAssetRepository = aiAssetRepository)

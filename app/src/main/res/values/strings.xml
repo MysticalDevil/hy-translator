@@ -39,6 +39,7 @@
     <string name="cd_live_translate_toggle">Toggle live translation</string>
     <string name="cd_voice_input_toggle">Toggle voice input</string>
     <string name="voice_input_error">Voice input unavailable: %1$s</string>
+    <string name="voice_input_permission_denied">Microphone permission denied</string>
 
     <!-- i18n: AI asset strings -->
     <string name="asset_asr_zipformer">Voice input model</string>

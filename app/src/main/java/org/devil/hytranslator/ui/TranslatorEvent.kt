@@ -11,6 +11,7 @@ sealed interface TranslatorEvent {
     data class ModelSelected(val model: ModelOption) : TranslatorEvent
     data class LiveTranslateToggled(val enabled: Boolean) : TranslatorEvent
     data class VoiceInputToggled(val enabled: Boolean) : TranslatorEvent
+    data class VoiceInputPermissionDenied(val message: String) : TranslatorEvent
     data class AsrPartialReceived(val text: String) : TranslatorEvent
     data class AsrFinalReceived(val text: String) : TranslatorEvent
     data class RefreshAiAsset(val asset: AiAsset) : TranslatorEvent
