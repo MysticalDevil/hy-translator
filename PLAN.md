@@ -103,7 +103,8 @@
   adapter 提供 job metadata。
 - AI 资源下载通知已拆成 ASR/OCR 独立 notification id，取消 action 也携带 asset id；
   但 service 当前仍是单 job，尚未支持真正的多资源并发下载。
-- 通知动作目前主要是取消，缺少 retry、打开 App、跳转到对应资源/模型状态的动作模型。
+- 通知动作已覆盖取消、打开 App 和失败后重试；后续还缺跳转到对应资源/模型状态的显式 deep link
+  和通知动作 instrumentation 测试。
 - UI 取消、通知取消、模型切换、清理资源和 service 自身失败之间还没有完整双向绑定；
   `TranslatorViewModel` 只是收集 service 内存流并映射 UI 状态。
 - 模型下载完成后由 service 发出 Completed，ViewModel 再加载模型并补发完成通知；
@@ -296,6 +297,7 @@ DI 默认决策：
   - UI 取消必须撤销 foreground notification。
   - 通知完成必须触发 repository refresh/load，并让 UI 进入 Ready/Loading/Error。
   - 通知失败必须暴露 typed error，UI 显示明确重试入口。
+  - 失败通知已提供直接重试动作；后续需要补 action instrumentation 覆盖。
   - 切换模型或清理资源时必须取消相关通知和下载 job。
 - 评估并落地 Google 推荐的用户发起数据传输方案：
   - Android 14+ 优先考虑 User-Initiated Data Transfer job。

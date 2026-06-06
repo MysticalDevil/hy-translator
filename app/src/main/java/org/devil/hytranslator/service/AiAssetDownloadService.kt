@@ -184,7 +184,7 @@ class AiAssetDownloadService : Service() {
         }
 
     companion object {
-        private const val ACTION_START = "org.devil.hytranslator.action.START_AI_ASSET_DOWNLOAD"
+        const val ACTION_START = "org.devil.hytranslator.action.START_AI_ASSET_DOWNLOAD"
         const val ACTION_CANCEL = "org.devil.hytranslator.action.CANCEL_AI_ASSET_DOWNLOAD"
         const val EXTRA_ASSET = "asset"
         private const val DOWNLOAD_INTERRUPTED_MESSAGE = "Download was interrupted"

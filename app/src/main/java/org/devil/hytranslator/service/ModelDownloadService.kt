@@ -105,7 +105,7 @@ class ModelDownloadService : Service() {
                         is DownloadProgress.Error -> {
                             terminalStateReached = true
                             stateStore.setError(model, progress.message)
-                            notifier.showError(progress.message)
+                            notifier.showError(progress.message, model)
                             stopForeground(STOP_FOREGROUND_DETACH)
                             stopSelf()
                         }
@@ -117,7 +117,7 @@ class ModelDownloadService : Service() {
                 val message = e.message ?: e.javaClass.simpleName
                 terminalStateReached = true
                 stateStore.setError(model, message)
-                notifier.showError(message)
+                notifier.showError(message, model)
                 stopForeground(STOP_FOREGROUND_DETACH)
                 stopSelf()
             }
@@ -184,8 +184,8 @@ class ModelDownloadService : Service() {
     }
 
     companion object {
-        private const val ACTION_START = "org.devil.hytranslator.action.START_MODEL_DOWNLOAD"
-        private const val EXTRA_MODEL_KEY = "model_key"
+        const val ACTION_START = "org.devil.hytranslator.action.START_MODEL_DOWNLOAD"
+        const val EXTRA_MODEL_KEY = "model_key"
         const val ACTION_CANCEL = "org.devil.hytranslator.action.CANCEL_MODEL_DOWNLOAD"
         private const val DOWNLOAD_INTERRUPTED_MESSAGE = "Download was interrupted"
 

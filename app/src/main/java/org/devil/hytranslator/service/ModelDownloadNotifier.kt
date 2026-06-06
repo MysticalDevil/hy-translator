@@ -85,11 +85,15 @@ class ModelDownloadNotifier(
     }
 
     override fun showError(message: String) {
+        showError(message = message, model = null)
+    }
+
+    fun showError(message: String, model: ModelOption?) {
         if (!canPostNotifications()) return
         resetProgressThrottle()
         notificationManager.notify(
             NOTIFICATION_ID,
-            errorNotification(message),
+            errorNotification(message, model),
         )
     }
 
@@ -171,8 +175,8 @@ class ModelDownloadNotifier(
             .setAutoCancel(true)
             .build()
 
-    fun errorNotification(message: String): Notification =
-        Notification.Builder(context, CHANNEL_ID)
+    fun errorNotification(message: String, model: ModelOption? = null): Notification {
+        val builder = Notification.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.model_download_notification_title))
             .setContentText(
@@ -180,7 +184,9 @@ class ModelDownloadNotifier(
             )
             .setContentIntent(contentIntent())
             .setAutoCancel(true)
-            .build()
+        model?.let { builder.addAction(retryAction(it)) }
+        return builder.build()
+    }
 
     private fun shouldSkipProgressUpdate(percent: Int): Boolean {
         val now = SystemClock.elapsedRealtime()
@@ -253,6 +259,20 @@ class ModelDownloadNotifier(
                 CANCEL_REQUEST_CODE,
                 Intent(context, ModelDownloadService::class.java)
                     .setAction(ModelDownloadService.ACTION_CANCEL),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            ),
+        ).build()
+
+    private fun retryAction(model: ModelOption): Notification.Action =
+        Notification.Action.Builder(
+            Icon.createWithResource(context, R.drawable.ic_download_tracker),
+            context.getString(R.string.action_retry),
+            PendingIntent.getService(
+                context,
+                RETRY_REQUEST_CODE,
+                Intent(context, ModelDownloadService::class.java)
+                    .setAction(ModelDownloadService.ACTION_START)
+                    .putExtra(ModelDownloadService.EXTRA_MODEL_KEY, model.key),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             ),
         ).build()
@@ -357,6 +377,7 @@ class ModelDownloadNotifier(
         const val NOTIFICATION_ID = 1001
         private const val PROGRESS_MAX = 100
         private const val CANCEL_REQUEST_CODE = 1002
+        private const val RETRY_REQUEST_CODE = 1005
         const val BYTES_PER_MB = 1024.0 * 1024.0
         private const val BYTES_PER_KB = 1024.0
         private const val RATE_SMOOTHING_WEIGHT = 0.7

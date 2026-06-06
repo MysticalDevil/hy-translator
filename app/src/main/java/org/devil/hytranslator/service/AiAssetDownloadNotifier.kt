@@ -115,6 +115,7 @@ class AiAssetDownloadNotifier(
             .setContentTitle(context.getString(R.string.ai_asset_download_notification_error))
             .setContentText(context.getString(R.string.asset_error, assetName(asset), message))
             .setContentIntent(contentIntent())
+            .addAction(retryAction(asset))
             .setAutoCancel(true)
             .build()
 
@@ -172,6 +173,20 @@ class AiAssetDownloadNotifier(
                 notificationId(asset),
                 Intent(context, AiAssetDownloadService::class.java)
                     .setAction(AiAssetDownloadService.ACTION_CANCEL)
+                    .putExtra(AiAssetDownloadService.EXTRA_ASSET, asset.name),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            ),
+        ).build()
+
+    private fun retryAction(asset: AiAsset): Notification.Action =
+        Notification.Action.Builder(
+            Icon.createWithResource(context, R.drawable.ic_download_tracker),
+            context.getString(R.string.action_retry),
+            PendingIntent.getService(
+                context,
+                notificationId(asset) + RETRY_REQUEST_CODE_OFFSET,
+                Intent(context, AiAssetDownloadService::class.java)
+                    .setAction(AiAssetDownloadService.ACTION_START)
                     .putExtra(AiAssetDownloadService.EXTRA_ASSET, asset.name),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             ),
@@ -243,6 +258,7 @@ class AiAssetDownloadNotifier(
         private const val PROGRESS_MAX = 100
         private const val BYTES_PER_MB = 1024.0 * 1024.0
         private const val MIN_PROGRESS_UPDATE_INTERVAL_MS = 1_000L
+        private const val RETRY_REQUEST_CODE_OFFSET = 100
         private val NOTIFICATION_COLOR = Color.rgb(77, 171, 247)
 
         fun notificationId(asset: AiAsset): Int =
