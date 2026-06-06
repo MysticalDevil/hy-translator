@@ -7,6 +7,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import org.devil.hytranslator.domain.model.AiAsset
 import org.devil.hytranslator.domain.model.AiAssetDownloadState
 import org.devil.hytranslator.platform.download.AiAssetDownloadStateStore
@@ -22,6 +23,12 @@ class AiAssetDownloadController(
         started = SharingStarted.Eagerly,
         initialValue = AiAssetDownloadState.Idle,
     )
+
+    override fun auditInterruptedDownloads() {
+        scope.launch {
+            stateStore.markDownloadingAsInterrupted(DOWNLOAD_INTERRUPTED_MESSAGE)
+        }
+    }
 
     override fun state(asset: AiAsset): StateFlow<AiAssetDownloadState> =
         stateStore.state(asset).stateIn(
@@ -40,5 +47,9 @@ class AiAssetDownloadController(
 
     override fun cancel(asset: AiAsset) {
         AiAssetDownloadService.cancel(context, asset)
+    }
+
+    private companion object {
+        const val DOWNLOAD_INTERRUPTED_MESSAGE = "Download was interrupted"
     }
 }

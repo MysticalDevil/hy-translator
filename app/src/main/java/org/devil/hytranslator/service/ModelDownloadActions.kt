@@ -7,6 +7,8 @@ import org.devil.hytranslator.domain.model.ModelOption
 interface ModelDownloadActions {
     val state: StateFlow<ModelDownloadState>
 
+    fun auditInterruptedDownloads()
+
     fun start(model: ModelOption)
 
     fun cancel()

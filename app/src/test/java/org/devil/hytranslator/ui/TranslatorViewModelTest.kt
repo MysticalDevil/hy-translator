@@ -186,6 +186,22 @@ class TranslatorViewModelTest {
     }
 
     @Test
+    fun initialize_auditsInterruptedModelAndAiAssetDownloads() = runTest {
+        val downloadActions = FakeModelDownloadActions()
+        val aiAssetDownloadActions = FakeAiAssetDownloadActions()
+        val viewModel = createViewModel(
+            downloadActions = downloadActions,
+            aiAssetDownloadActions = aiAssetDownloadActions,
+        )
+
+        viewModel.initialize()
+        advanceUntilIdle()
+
+        assertTrue(downloadActions.auditedInterruptedDownloads)
+        assertTrue(aiAssetDownloadActions.auditedInterruptedDownloads)
+    }
+
+    @Test
     fun voiceInput_whenAsrAssetIsMissing_requestsAsrModel() = runTest {
         val aiAssetRepository = FakeAiAssetRepository()
         val viewModel = createViewModel(aiAssetRepository = aiAssetRepository)
@@ -427,6 +443,60 @@ class TranslatorViewModelTest {
     }
 
     @Test
+    fun selectModel_stopsActiveVoiceInputWithoutCancellingAiAssetDownloads() = runTest {
+        val aiAssetRepository = FakeAiAssetRepository().apply {
+            asrState.value = AiAssetState.Ready
+        }
+        val voiceInputRepository = FakeVoiceInputRepository()
+        val aiAssetDownloadActions = FakeAiAssetDownloadActions()
+        val viewModel = createViewModel(
+            aiAssetRepository = aiAssetRepository,
+            voiceInputRepository = voiceInputRepository,
+            aiAssetDownloadActions = aiAssetDownloadActions,
+        )
+
+        viewModel.initialize()
+        advanceUntilIdle()
+        viewModel.onEvent(TranslatorEvent.VoiceInputToggled(true))
+        advanceUntilIdle()
+        viewModel.onEvent(TranslatorEvent.ModelSelected(testModel("Q6_K")))
+        advanceUntilIdle()
+
+        assertTrue(voiceInputRepository.stopped)
+        assertSame(VoiceInputState.Idle, viewModel.uiState.value.voiceInputState)
+        assertFalse(aiAssetDownloadActions.cancelled)
+    }
+
+    @Test
+    fun clearAllModels_cancelsModelAndAiAssetDownloadsAndStopsVoiceInput() = runTest {
+        val aiAssetRepository = FakeAiAssetRepository().apply {
+            asrState.value = AiAssetState.Ready
+        }
+        val voiceInputRepository = FakeVoiceInputRepository()
+        val downloadActions = FakeModelDownloadActions()
+        val aiAssetDownloadActions = FakeAiAssetDownloadActions()
+        val viewModel = createViewModel(
+            aiAssetRepository = aiAssetRepository,
+            voiceInputRepository = voiceInputRepository,
+            downloadActions = downloadActions,
+            aiAssetDownloadActions = aiAssetDownloadActions,
+        )
+
+        viewModel.initialize()
+        advanceUntilIdle()
+        viewModel.onEvent(TranslatorEvent.VoiceInputToggled(true))
+        advanceUntilIdle()
+        viewModel.onEvent(TranslatorEvent.ClearAllModels)
+        advanceUntilIdle()
+
+        assertTrue(downloadActions.cancelled)
+        assertTrue(aiAssetDownloadActions.cancelled)
+        assertTrue(voiceInputRepository.stopped)
+        assertSame(VoiceInputState.Idle, viewModel.uiState.value.voiceInputState)
+        assertSame(ModelStatus.NotDownloaded, viewModel.uiState.value.modelStatus)
+    }
+
+    @Test
     fun sourceAndTargetCannotRemainEqualAfterManualSelection() = runTest {
         val viewModel = createViewModel()
         val english = Language("en", "English")
@@ -611,6 +681,12 @@ class TranslatorViewModelTest {
             private set
         var cancelled = false
             private set
+        var auditedInterruptedDownloads = false
+            private set
+
+        override fun auditInterruptedDownloads() {
+            auditedInterruptedDownloads = true
+        }
 
         override fun start(model: ModelOption) {
             startedModel = model
@@ -638,9 +714,15 @@ class TranslatorViewModelTest {
             private set
         var cancelledAsset: AiAsset? = null
             private set
+        var auditedInterruptedDownloads = false
+            private set
 
         fun mutableState(asset: AiAsset): MutableStateFlow<AiAssetDownloadState> =
             mutableStates.getValue(asset)
+
+        override fun auditInterruptedDownloads() {
+            auditedInterruptedDownloads = true
+        }
 
         override fun state(asset: AiAsset): StateFlow<AiAssetDownloadState> =
             mutableStates.getValue(asset)

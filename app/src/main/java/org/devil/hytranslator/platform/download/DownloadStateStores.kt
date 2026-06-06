@@ -66,6 +66,17 @@ class ModelDownloadStateStore(
         }
     }
 
+    suspend fun markDownloadingAsInterrupted(message: String) {
+        dataStore.edit { preferences ->
+            if (preferences[MODEL_STATUS] == STATUS_DOWNLOADING) {
+                preferences[MODEL_STATUS] = STATUS_ERROR
+                preferences[MODEL_ERROR] = message
+                preferences.remove(MODEL_PATH)
+                preferences.clearProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL)
+            }
+        }
+    }
+
     private fun Preferences.toModelDownloadState(): ModelDownloadState {
         return modelDownloadStateFromRecord(
             status = this[MODEL_STATUS],
@@ -157,6 +168,23 @@ class AiAssetDownloadStateStore(
     suspend fun setIdle(asset: AiAsset) {
         dataStore.edit { preferences ->
             preferences.clearAsset(asset)
+        }
+    }
+
+    suspend fun markDownloadingAsInterrupted(message: String) {
+        dataStore.edit { preferences ->
+            AiAsset.values().forEach { asset ->
+                if (preferences[aiAssetStatusKey(asset)] == STATUS_DOWNLOADING) {
+                    preferences[aiAssetStatusKey(asset)] = STATUS_ERROR
+                    preferences[aiAssetErrorKey(asset)] = message
+                    preferences.remove(aiAssetPathKey(asset))
+                    preferences.clearProgress(
+                        aiAssetProgressTypeKey(asset),
+                        aiAssetDownloadedKey(asset),
+                        aiAssetTotalKey(asset),
+                    )
+                }
+            }
         }
     }
 

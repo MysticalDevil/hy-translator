@@ -110,6 +110,8 @@ class TranslatorViewModel(
         initialized = true
         aiAssetRepository.refresh(AiAsset.AsrStreamingZipformer)
         aiAssetRepository.refresh(AiAsset.OcrPpOcrV5Mobile)
+        modelDownloadController.auditInterruptedDownloads()
+        aiAssetDownloadController.auditInterruptedDownloads()
         observeDownloadService()
         observeAiAssetDownloadService()
         observeAiAssets()
@@ -195,10 +197,7 @@ class TranslatorViewModel(
 
     fun onVoiceInputToggled(enabled: Boolean) {
         if (!enabled) {
-            voiceInputJob?.cancel()
-            voiceInputJob = null
-            voiceInputRepository.stop()
-            _uiState.update { it.copy(voiceInputState = VoiceInputState.Idle) }
+            stopVoiceInput()
             return
         }
 
@@ -240,6 +239,7 @@ class TranslatorViewModel(
         if (model.key == _uiState.value.selectedModel.key) return
 
         val oldGenerationJob = generationJob
+        stopVoiceInput()
         liveTranslateJob?.cancel()
         oldGenerationJob?.cancel()
         modelDownloadController.cancel()
@@ -275,7 +275,9 @@ class TranslatorViewModel(
 
     fun onClearAllModels() {
         val oldGenerationJob = generationJob
+        stopVoiceInput()
         modelDownloadController.cancel()
+        aiAssetDownloadController.cancel()
         oldGenerationJob?.cancel()
         loadJob?.cancel()
         loadJob = null
@@ -541,6 +543,13 @@ class TranslatorViewModel(
                 AiAsset.OcrPpOcrV5Mobile -> it.copy(ocrAssetState = assetState)
             }
         }
+    }
+
+    private fun stopVoiceInput() {
+        voiceInputJob?.cancel()
+        voiceInputJob = null
+        voiceInputRepository.stop()
+        _uiState.update { it.copy(voiceInputState = VoiceInputState.Idle) }
     }
 
     private fun scheduleLiveTranslateIfEnabled() {
