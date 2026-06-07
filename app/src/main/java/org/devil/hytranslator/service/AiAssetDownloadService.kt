@@ -53,21 +53,13 @@ class AiAssetDownloadService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        interruptActiveDownloads()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
-        val activeAssets = synchronized(downloadJobs) {
-            downloadJobs.filterValues { it.isActive }.keys.toList()
-        }
-        if (activeAssets.isNotEmpty()) {
-            runBlocking(Dispatchers.IO) {
-                activeAssets.forEach { asset ->
-                    stateStore.setError(asset, DOWNLOAD_INTERRUPTED_MESSAGE)
-                }
-            }
-        }
-        synchronized(downloadJobs) {
-            downloadJobs.values.forEach { it.cancel() }
-            downloadJobs.clear()
-        }
+        interruptActiveDownloads()
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -185,6 +177,25 @@ class AiAssetDownloadService : Service() {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
+    }
+
+    private fun interruptActiveDownloads() {
+        val activeAssets = synchronized(downloadJobs) {
+            val assets = downloadJobs.filterValues { it.isActive }.keys.toList()
+            downloadJobs.values.forEach { it.cancel() }
+            downloadJobs.clear()
+            assets
+        }
+        if (activeAssets.isEmpty()) return
+
+        runBlocking(Dispatchers.IO) {
+            activeAssets.forEach { asset ->
+                stateStore.setError(asset, DOWNLOAD_INTERRUPTED_MESSAGE)
+            }
+        }
+        activeAssets.forEach { notifier.cancel(it) }
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     private fun finishDownload(asset: AiAsset) {

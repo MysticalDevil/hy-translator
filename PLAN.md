@@ -101,7 +101,9 @@
   DataStore 中残留的 downloading 记录并标记为 interrupted error；已新增真机 instrumentation
   验证模型和 AI 资源下载审计会把残留 downloading 状态转成 interrupted error。基础 job id、
   attempt/retry 计数和速度 metadata 已随模型和 ASR/OCR 下载状态持久化；后续仍要补真实
-  service/recent task 恢复验收。
+  service/recent task 恢复验收。`ModelDownloadService` 和 `AiAssetDownloadService` 已显式处理
+  `onTaskRemoved`，把活跃下载标记为 interrupted error 并撤销前台通知，避免 recent task 移除时
+  静默丢失状态。
 - 两套下载 service/notifier 重复实现下载 job、foreground notification、取消动作、
   进度节流和错误展示，后续应收敛为统一 download runtime，再由 model/AI asset
   adapter 提供 job metadata。
@@ -134,8 +136,9 @@
   但不会误清已经 Ready 的资源。后续仍要补这些 UI 入口到 service/notification 的真机验收。
 - 还缺少前台服务被系统重启、
   recent task 划掉后的自动化或手动验收用例。
-  当前已覆盖 App 启动审计残留 downloading 的基础恢复机制，但还没覆盖真实 service 被系统重启
-  或 recent task 划掉时的端到端用户路径。
+  当前已覆盖 App 启动审计残留 downloading 的基础恢复机制，service 也已实现
+  `onTaskRemoved` 中断持久化；但还没覆盖真实 service 被系统重启或 recent task 划掉时的
+  端到端用户路径。
   通知权限拒绝现在会阻止下载启动，并把模型或对应 ASR/OCR 资源状态置为可见错误；
   已新增 ViewModel 单测和 Compose 真机测试覆盖该错误展示，后续仍可补真实系统权限弹窗流程。
 
@@ -369,7 +372,8 @@ DI 默认决策：
   - 小图标统一使用符合 Android 通知规范的单色 drawable。
   - AI 资源通知使用按资源稳定分配的 notification id，避免 ASR/OCR 状态互相覆盖。
 - 明确用户划掉任务后的策略：
-  - 如果只是移除 recent task，不应静默破坏已承诺的下载。
+  - 如果移除 recent task，当前策略是取消活跃下载、持久化 interrupted error、撤销前台通知，
+    下次打开 App 时通过持久化状态显示可重试错误。
   - 如果系统终止进程，下载状态必须可恢复或以明确失败状态呈现。
 
 ### Phase 6：OCR、CameraX 和权限

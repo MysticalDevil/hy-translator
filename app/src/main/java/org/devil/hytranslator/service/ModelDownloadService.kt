@@ -55,14 +55,13 @@ class ModelDownloadService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        interruptActiveDownload()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
-        currentModel
-            ?.takeIf { downloadJob?.isActive == true && !terminalStateReached }
-            ?.let { model ->
-                runBlocking(Dispatchers.IO) {
-                    stateStore.setError(model, DOWNLOAD_INTERRUPTED_MESSAGE)
-                }
-            }
+        interruptActiveDownload()
         downloadJob?.cancel()
         serviceScope.cancel()
         super.onDestroy()
@@ -179,6 +178,23 @@ class ModelDownloadService : Service() {
         }
         notifier.cancel()
         currentModel = null
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
+    private fun interruptActiveDownload() {
+        val model = currentModel?.takeIf {
+            downloadJob?.isActive == true && !terminalStateReached
+        } ?: return
+
+        terminalStateReached = true
+        runBlocking(Dispatchers.IO) {
+            stateStore.setError(model, DOWNLOAD_INTERRUPTED_MESSAGE)
+        }
+        downloadJob?.cancel()
+        downloadJob = null
+        currentModel = null
+        notifier.cancel()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
