@@ -16,7 +16,7 @@ class HyTranslatorApplication : Application() {
         super.onCreate()
         thread(start = true, name = "bundled-ai-assets") {
             BundledAiAssetInstaller(this).installIfPresent()
-            BundledModelInstaller(this).installIfPresent(ModelOptions.recommend(this))
+            BundledModelInstaller(this).installAllIfPresent(ModelOptions.all)
         }
         appContainer = DefaultAppContainer(this)
     }

@@ -17,6 +17,22 @@ class BundledModelInstallerTest {
     }
 
     @Test
+    fun bundledModelTargets_coverEveryModelOption() {
+        val targets = ModelOptions.all.map { model ->
+            BundledModelInstaller.bundledModelTarget(model).assetPath
+        }
+
+        assertEquals(
+            listOf(
+                "models/Hy-MT2-1.8B-Q4_K_M.gguf",
+                "models/Hy-MT2-1.8B-Q6_K.gguf",
+                "models/Hy-MT2-1.8B-Q8_0.gguf",
+            ),
+            targets,
+        )
+    }
+
+    @Test
     fun assetExists_listsParentDirectoryAndMatchesFileName() {
         val queriedParents = mutableListOf<String>()
 

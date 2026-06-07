@@ -8,6 +8,10 @@ import java.io.File
 internal class BundledModelInstaller(
     private val context: Context,
 ) {
+    fun installAllIfPresent(models: Iterable<ModelOption>) {
+        models.forEach { model -> installIfPresent(model) }
+    }
+
     fun installIfPresent(model: ModelOption) {
         val target = bundledModelTarget(model)
         if (!context.assets.assetExists(target.assetPath)) return
