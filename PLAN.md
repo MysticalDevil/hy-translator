@@ -108,6 +108,10 @@
   进度节流和错误展示，后续应收敛为统一 download runtime，再由 model/AI asset
   adapter 提供 job metadata。Service 内部 repository 创建点已先收敛到默认依赖工厂，
   作为后续 Hilt/service 注入迁移的过渡 seam，并用于不触发真实大文件下载的 service 级测试。
+  当前已抽出第一层 `DownloadForegroundRuntime`，复用启动前台通知、收集
+  `DownloadProgress`、写入 Downloading/Completed/Error 状态、发布进度通知和处理异常终态；
+  模型单任务和 AI asset 多任务的取消/并发策略仍保留在各自 service，下一步再继续收敛
+  通知 renderer、job registry 和 UIDT scheduler。
 - AI 资源下载通知已拆成 ASR/OCR 独立 notification id，取消 action 也携带 asset id；
   AI 资源下载状态已按 asset 独立持久化，ViewModel 也按 ASR/OCR 分别观察状态。
   `AiAssetDownloadService` 已按 asset 管理下载 job，支持 ASR/OCR 并发下载和分别取消。
@@ -350,6 +354,8 @@ DI 默认决策：
   - 模型下载和 AI 资源下载复用同一套 download job/progress/action 抽象。
   - 下载 job id、asset/model id、目标路径、总大小、已下载大小、错误原因、完成状态持久化。
   - App 启动时从持久化状态恢复 UI，不依赖 service 静态内存状态。
+  - 已抽出 `DownloadForegroundRuntime` 复用前台执行和 progress 终态处理；后续继续把
+    job registry、通知渲染和 UIDT/FGS 调度层纳入统一 runtime。
 - 通知和 UI 双向绑定：
   - 通知取消必须取消真实下载任务，并把 UI 状态更新为取消/可重试。
   - UI 取消必须撤销 foreground notification。

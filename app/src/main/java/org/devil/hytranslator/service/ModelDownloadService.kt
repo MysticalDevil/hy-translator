@@ -1,13 +1,12 @@
 package org.devil.hytranslator.service
 
+import android.app.Notification
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
-import androidx.core.app.ServiceCompat
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,11 +27,19 @@ class ModelDownloadService : Service() {
     private var terminalStateReached = false
     private lateinit var notifier: ModelDownloadNotifier
     private lateinit var stateStore: ModelDownloadStateStore
+    private lateinit var downloadRuntime: DownloadForegroundRuntime<ModelOption>
 
     override fun onCreate() {
         super.onCreate()
         notifier = ModelDownloadNotifier(applicationContext)
         stateStore = ModelDownloadStateStore(applicationContext)
+        downloadRuntime = DownloadForegroundRuntime(
+            service = this,
+            scope = serviceScope,
+            notificationId = { ModelDownloadNotifier.NOTIFICATION_ID },
+            foregroundServiceType = ::foregroundServiceType,
+            callbacks = ModelDownloadCallbacks(),
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -72,101 +79,15 @@ class ModelDownloadService : Service() {
         terminalStateReached = false
 
         val initialNotification = notifier.progressNotification(model, downloaded = 0L, total = 0L)
-        ServiceCompat.startForeground(
-            this,
-            ModelDownloadNotifier.NOTIFICATION_ID,
-            initialNotification,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            } else {
-                0
-            },
-        )
-
-        downloadJob = serviceScope.launch {
+        downloadJob = downloadRuntime.start(
+            target = model,
+            initialNotification = initialNotification,
+        ) {
             val repository = DownloadServiceDependencies.modelRepositoryFactory(applicationContext)
             repository.selectModel(model)
-            stateStore.setDownloading(model, null)
-            try {
-                repository.download().collect { progress ->
-                    stateStore.setDownloading(model, progress)
-                    when (progress) {
-                        is DownloadProgress.Started -> updateForeground(model, progress)
-                        is DownloadProgress.Downloading -> updateForeground(model, progress)
-                        is DownloadProgress.Completed -> {
-                            terminalStateReached = true
-                            stateStore.setCompleted(model, progress.path)
-                            notifier.showComplete(model)
-                            stopForeground(STOP_FOREGROUND_DETACH)
-                            stopSelf()
-                        }
-                        is DownloadProgress.Error -> {
-                            terminalStateReached = true
-                            stateStore.setError(model, progress.message)
-                            notifier.showError(progress.message, model)
-                            stopForeground(STOP_FOREGROUND_DETACH)
-                            stopSelf()
-                        }
-                    }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                val message = e.message ?: e.javaClass.simpleName
-                terminalStateReached = true
-                stateStore.setError(model, message)
-                notifier.showError(message, model)
-                stopForeground(STOP_FOREGROUND_DETACH)
-                stopSelf()
-            }
+            repository.download()
         }
     }
-
-    private fun updateForeground(model: ModelOption, progress: DownloadProgress) {
-        if (!shouldUpdateForeground(progress)) return
-
-        val notification = when (progress) {
-            is DownloadProgress.Started -> notifier.progressNotification(
-                model = model,
-                downloaded = progress.existing,
-                total = progress.total,
-            )
-            is DownloadProgress.Downloading -> notifier.progressNotification(
-                model = model,
-                downloaded = progress.downloaded,
-                total = progress.total,
-            )
-            is DownloadProgress.Completed -> notifier.completeNotification(model)
-            is DownloadProgress.Error -> notifier.errorNotification(progress.message)
-        }
-        ServiceCompat.startForeground(
-            this,
-            ModelDownloadNotifier.NOTIFICATION_ID,
-            notification,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            } else {
-                0
-            },
-        )
-    }
-
-    private fun shouldUpdateForeground(progress: DownloadProgress): Boolean =
-        when (progress) {
-            is DownloadProgress.Started -> notifier.shouldPublishProgress(
-                downloaded = progress.existing,
-                total = progress.total,
-            )
-
-            is DownloadProgress.Downloading -> notifier.shouldPublishProgress(
-                downloaded = progress.downloaded,
-                total = progress.total,
-            )
-
-            is DownloadProgress.Completed,
-            is DownloadProgress.Error,
-            -> true
-        }
 
     private fun cancelDownload() {
         terminalStateReached = true
@@ -196,6 +117,55 @@ class ModelDownloadService : Service() {
         notifier.cancel()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun foregroundServiceType(): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        } else {
+            0
+        }
+
+    private inner class ModelDownloadCallbacks : DownloadForegroundRuntime.Callbacks<ModelOption> {
+        override suspend fun setDownloading(target: ModelOption, progress: DownloadProgress?) {
+            stateStore.setDownloading(target, progress)
+        }
+
+        override suspend fun setCompleted(target: ModelOption, path: String) {
+            stateStore.setCompleted(target, path)
+        }
+
+        override suspend fun setError(target: ModelOption, message: String) {
+            stateStore.setError(target, message)
+        }
+
+        override fun shouldPublishProgress(
+            target: ModelOption,
+            downloaded: Long,
+            total: Long,
+        ): Boolean =
+            notifier.shouldPublishProgress(downloaded, total)
+
+        override fun progressNotification(
+            target: ModelOption,
+            downloaded: Long,
+            total: Long,
+        ): Notification =
+            notifier.progressNotification(target, downloaded, total)
+
+        override fun onCompleted(target: ModelOption) {
+            terminalStateReached = true
+            notifier.showComplete(target)
+            stopForeground(STOP_FOREGROUND_DETACH)
+            stopSelf()
+        }
+
+        override fun onError(target: ModelOption, message: String) {
+            terminalStateReached = true
+            notifier.showError(message, target)
+            stopForeground(STOP_FOREGROUND_DETACH)
+            stopSelf()
+        }
     }
 
     companion object {

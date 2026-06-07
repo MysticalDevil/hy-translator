@@ -1,13 +1,12 @@
 package org.devil.hytranslator.service
 
+import android.app.Notification
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
-import androidx.core.app.ServiceCompat
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,11 +23,19 @@ class AiAssetDownloadService : Service() {
     private val downloadJobs = mutableMapOf<AiAsset, Job>()
     private lateinit var notifier: AiAssetDownloadNotifier
     private lateinit var stateStore: AiAssetDownloadStateStore
+    private lateinit var downloadRuntime: DownloadForegroundRuntime<AiAsset>
 
     override fun onCreate() {
         super.onCreate()
         notifier = AiAssetDownloadNotifier(applicationContext)
         stateStore = AiAssetDownloadStateStore(applicationContext)
+        downloadRuntime = DownloadForegroundRuntime(
+            service = this,
+            scope = serviceScope,
+            notificationId = AiAssetDownloadNotifier::notificationId,
+            foregroundServiceType = ::foregroundServiceType,
+            callbacks = AiAssetDownloadCallbacks(),
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -68,89 +75,17 @@ class AiAssetDownloadService : Service() {
             downloadJobs.remove(asset)?.cancel()
         }
 
-        ServiceCompat.startForeground(
-            this,
-            AiAssetDownloadNotifier.notificationId(asset),
-            notifier.progressNotification(asset, downloaded = 0L, total = 0L),
-            foregroundServiceType(),
-        )
-
-        val job = serviceScope.launch {
+        val job = downloadRuntime.start(
+            target = asset,
+            initialNotification = notifier.progressNotification(asset, downloaded = 0L, total = 0L),
+        ) {
             val repository = DownloadServiceDependencies.aiAssetRepositoryFactory(applicationContext)
-            stateStore.setDownloading(asset, null)
-            try {
-                repository.download(asset).collect { progress ->
-                    stateStore.setDownloading(asset, progress)
-                    when (progress) {
-                        is DownloadProgress.Started -> updateForeground(asset, progress)
-                        is DownloadProgress.Downloading -> updateForeground(asset, progress)
-                        is DownloadProgress.Completed -> {
-                            stateStore.setCompleted(asset, progress.path)
-                            notifier.showComplete(asset)
-                            finishDownload(asset)
-                        }
-                        is DownloadProgress.Error -> {
-                            stateStore.setError(asset, progress.message)
-                            notifier.showError(asset, progress.message)
-                            finishDownload(asset)
-                        }
-                    }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                val message = e.message ?: e.javaClass.simpleName
-                stateStore.setError(asset, message)
-                notifier.showError(asset, message)
-                finishDownload(asset)
-            }
+            repository.download(asset)
         }
         synchronized(downloadJobs) {
             downloadJobs[asset] = job
         }
     }
-
-    private fun updateForeground(asset: AiAsset, progress: DownloadProgress) {
-        if (!shouldUpdateForeground(progress)) return
-
-        val notification = when (progress) {
-            is DownloadProgress.Started -> notifier.progressNotification(
-                asset = asset,
-                downloaded = progress.existing,
-                total = progress.total,
-            )
-            is DownloadProgress.Downloading -> notifier.progressNotification(
-                asset = asset,
-                downloaded = progress.downloaded,
-                total = progress.total,
-            )
-            is DownloadProgress.Completed -> notifier.completeNotification(asset)
-            is DownloadProgress.Error -> notifier.errorNotification(asset, progress.message)
-        }
-        ServiceCompat.startForeground(
-            this,
-            AiAssetDownloadNotifier.notificationId(asset),
-            notification,
-            foregroundServiceType(),
-        )
-    }
-
-    private fun shouldUpdateForeground(progress: DownloadProgress): Boolean =
-        when (progress) {
-            is DownloadProgress.Started -> notifier.shouldPublishProgress(
-                downloaded = progress.existing,
-                total = progress.total,
-            )
-
-            is DownloadProgress.Downloading -> notifier.shouldPublishProgress(
-                downloaded = progress.downloaded,
-                total = progress.total,
-            )
-
-            is DownloadProgress.Completed,
-            is DownloadProgress.Error,
-            -> true
-        }
 
     private fun cancelDownload(asset: AiAsset? = null) {
         val cancelledAssets = synchronized(downloadJobs) {
@@ -218,6 +153,44 @@ class AiAssetDownloadService : Service() {
         } else {
             0
         }
+
+    private inner class AiAssetDownloadCallbacks : DownloadForegroundRuntime.Callbacks<AiAsset> {
+        override suspend fun setDownloading(target: AiAsset, progress: DownloadProgress?) {
+            stateStore.setDownloading(target, progress)
+        }
+
+        override suspend fun setCompleted(target: AiAsset, path: String) {
+            stateStore.setCompleted(target, path)
+        }
+
+        override suspend fun setError(target: AiAsset, message: String) {
+            stateStore.setError(target, message)
+        }
+
+        override fun shouldPublishProgress(
+            target: AiAsset,
+            downloaded: Long,
+            total: Long,
+        ): Boolean =
+            notifier.shouldPublishProgress(downloaded, total)
+
+        override fun progressNotification(
+            target: AiAsset,
+            downloaded: Long,
+            total: Long,
+        ): Notification =
+            notifier.progressNotification(target, downloaded, total)
+
+        override fun onCompleted(target: AiAsset) {
+            notifier.showComplete(target)
+            finishDownload(target)
+        }
+
+        override fun onError(target: AiAsset, message: String) {
+            notifier.showError(target, message)
+            finishDownload(target)
+        }
+    }
 
     companion object {
         const val ACTION_START = "org.devil.hytranslator.action.START_AI_ASSET_DOWNLOAD"
