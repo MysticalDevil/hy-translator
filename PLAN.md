@@ -138,6 +138,10 @@
   bitmap resize/normalize、Tensor 输入、`predictor.run()` 和 CTC decode 已有单测覆盖。
 - det resize/stride 对齐计划已补纯 JVM 测试；仍缺 det bitmap 像素归一化、det 后处理、
   rec crop/resize 多框循环、文本框排序、typed error 收敛、instrumented OCR smoke 测试和真机验证。
+- 已新增标准图片 smoke 入口：`scripts/download-ocr-smoke-images.sh` 下载 PaddleOCR/PaddleX
+  demo 图片，`PaddleLiteOcrSmokeTest` 可在设备已有 OCR 模型资源时把标准图片喂给
+  Paddle Lite PP-OCRv5 mobile recognition runtime 做真机 smoke。大规模标准回归数据源
+  记录在 `docs/ocr-smoke-data.md`，包括 ICDAR 2015、COCO-Text 和 PaddleOCR dataset index。
 
 ### ASR
 
@@ -361,6 +365,9 @@ DI 默认决策：
   - OCR 资源下载完成后自动 refresh，用户再次点击 OCR 可进入相机/相册。
   - 相机拍照 OCR、相册 OCR 至少各有一次真机 smoke 验证。
   - PaddleOCR 初始化失败、模型缺失、识别失败要进入 typed error 和 UI 重试路径。
+  - 已新增单行 recognition smoke harness：设备上 OCR 模型存在时，instrumented test 会下载
+    PaddleOCR 标准 demo 图片并验证输出非空；模型未下载时该测试 skip。完整 det + rec
+    端到端 smoke 仍随 det 后处理一起补。
 - 权限状态集中建模，UI 只显示当前状态和触发请求事件。
 - 相册和相机错误使用 typed error，避免在 UI 层拼接平台异常。
 
