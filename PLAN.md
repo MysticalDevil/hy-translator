@@ -114,7 +114,9 @@
   资源状态行。已新增模型下载取消 action 到 DataStore Idle 的真机 instrumentation 测试；
   通知目标 extra 到 `NotificationDestination` 的 JVM 回归测试已补齐，并已新增通知 intent
   打开 `MainActivity` 后触发模型选择/AI 资源高亮的真机 instrumentation 测试，覆盖首次打开和
-  `onNewIntent` 复用路径。后续还缺滚动定位、retry action 和 service 级完成/失败态测试。
+  `onNewIntent` 复用路径；已抽出通知 intent 工厂并新增真机 instrumentation 覆盖
+  retry/cancel/content intent 的 action、component 和 extras。后续还缺滚动定位、真实 retry
+  端到端和 service 级完成/失败态测试。
 - UI 取消、通知取消、模型切换、清理资源和 service 自身失败之间还没有完整双向绑定；
   `TranslatorViewModel` 已收集持久化下载状态并按 AI asset 分别映射 UI 状态，但模型下载完成后的
   自动加载语义仍依赖 App 进程存活。
@@ -338,7 +340,8 @@ DI 默认决策：
   - 通知完成必须触发 repository refresh/load，并让 UI 进入 Ready/Loading/Error。
   - 通知失败必须暴露 typed error，UI 显示明确重试入口。
   - 失败通知已提供直接重试动作；通知 content intent 已携带模型/AI 资源目标上下文。
-    已补取消 action 到持久化状态的真机 instrumentation；后续需要补 retry/open action 覆盖。
+    已补取消 action 到持久化状态的真机 instrumentation；已补 retry/open intent action 和
+    extras 覆盖。后续需要补真实 retry 端到端覆盖。
   - 切换模型会取消模型下载并停止 ASR runtime；清理模型会取消模型下载、AI 资源下载
     和 ASR runtime。后续补真机通知动作验证。
 - 评估并落地 Google 推荐的用户发起数据传输方案：
@@ -415,7 +418,8 @@ DI 默认决策：
     finalize 部分文件；
     已新增 service notification cancel action 的真机 instrumentation 测试；
     已新增下载恢复 audit 的真机 instrumentation 测试；
-    后续还需补 retry action 和真实 service/recent task 恢复测试。
+    已新增通知 retry/cancel/open intent 工厂的真机 instrumentation 测试；
+    后续还需补真实 retry 端到端和真实 service/recent task 恢复测试。
   - 已新增 AI asset spec JVM 测试，覆盖 OCR PP-OCRv5 mobile 必需文件、URL resource
     和 tar.gz entry 配置。
 - Compose UI 测试：

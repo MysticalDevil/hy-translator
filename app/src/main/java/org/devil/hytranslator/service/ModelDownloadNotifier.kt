@@ -7,7 +7,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.Icon
@@ -15,7 +14,6 @@ import android.os.Build
 import android.os.SystemClock
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
-import org.devil.hytranslator.MainActivity
 import org.devil.hytranslator.R
 import org.devil.hytranslator.domain.model.DownloadProgress
 import org.devil.hytranslator.domain.model.ModelOption
@@ -263,8 +261,7 @@ class ModelDownloadNotifier(
             PendingIntent.getService(
                 context,
                 CANCEL_REQUEST_CODE,
-                Intent(context, ModelDownloadService::class.java)
-                    .setAction(ModelDownloadService.ACTION_CANCEL),
+                DownloadNotificationIntents.modelCancel(context),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             ),
         ).build()
@@ -276,9 +273,7 @@ class ModelDownloadNotifier(
             PendingIntent.getService(
                 context,
                 RETRY_REQUEST_CODE,
-                Intent(context, ModelDownloadService::class.java)
-                    .setAction(ModelDownloadService.ACTION_START)
-                    .putExtra(ModelDownloadService.EXTRA_MODEL_KEY, model.key),
+                DownloadNotificationIntents.modelRetry(context, model),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             ),
         ).build()
@@ -287,16 +282,7 @@ class ModelDownloadNotifier(
         PendingIntent.getActivity(
             context,
             0,
-            Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra(
-                    NotificationNavigation.EXTRA_TARGET,
-                    NotificationNavigation.TARGET_MODEL_DOWNLOAD,
-                )
-                model?.let {
-                    putExtra(NotificationNavigation.EXTRA_MODEL_KEY, it.key)
-                }
-            },
+            DownloadNotificationIntents.modelContent(context, model),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 

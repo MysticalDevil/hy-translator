@@ -6,7 +6,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.Icon
@@ -14,7 +13,6 @@ import android.os.Build
 import android.os.SystemClock
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
-import org.devil.hytranslator.MainActivity
 import org.devil.hytranslator.R
 import org.devil.hytranslator.domain.model.AiAsset
 import kotlin.math.roundToInt
@@ -171,9 +169,7 @@ class AiAssetDownloadNotifier(
             PendingIntent.getService(
                 context,
                 notificationId(asset),
-                Intent(context, AiAssetDownloadService::class.java)
-                    .setAction(AiAssetDownloadService.ACTION_CANCEL)
-                    .putExtra(AiAssetDownloadService.EXTRA_ASSET, asset.name),
+                DownloadNotificationIntents.aiAssetCancel(context, asset),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             ),
         ).build()
@@ -185,9 +181,7 @@ class AiAssetDownloadNotifier(
             PendingIntent.getService(
                 context,
                 notificationId(asset) + RETRY_REQUEST_CODE_OFFSET,
-                Intent(context, AiAssetDownloadService::class.java)
-                    .setAction(AiAssetDownloadService.ACTION_START)
-                    .putExtra(AiAssetDownloadService.EXTRA_ASSET, asset.name),
+                DownloadNotificationIntents.aiAssetRetry(context, asset),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             ),
         ).build()
@@ -196,14 +190,7 @@ class AiAssetDownloadNotifier(
         PendingIntent.getActivity(
             context,
             notificationId(asset),
-            Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra(
-                    NotificationNavigation.EXTRA_TARGET,
-                    NotificationNavigation.TARGET_AI_ASSET_DOWNLOAD,
-                )
-                putExtra(NotificationNavigation.EXTRA_AI_ASSET, asset.name)
-            },
+            DownloadNotificationIntents.aiAssetContent(context, asset),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
