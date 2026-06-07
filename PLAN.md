@@ -405,8 +405,9 @@ DI 默认决策：
   - 使用 fake file system 或临时目录。
   - 使用 MockWebServer 或等价 fake HTTP source 测试 Range、断点续传、大小校验、取消。
   - 已新增下载状态持久化记录的 JVM 映射测试，覆盖模型/AI 资源下载状态恢复；
+    已新增 `ModelDownloader` 本地 HTTP JVM 测试，覆盖下载成功、HTTP error 和 Range 续传；
     已新增 service notification cancel action 的真机 instrumentation 测试；
-    后续还需补真实 downloader、retry/open action 和进程恢复测试。
+    后续还需补 AI asset downloader、取消、retry action 和进程恢复测试。
   - 已新增 AI asset spec JVM 测试，覆盖 OCR PP-OCRv5 mobile 必需文件、URL resource
     和 tar.gz entry 配置。
 - Compose UI 测试：

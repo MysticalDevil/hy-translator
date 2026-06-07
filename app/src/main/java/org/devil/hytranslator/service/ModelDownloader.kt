@@ -15,18 +15,34 @@ import java.io.FileOutputStream
 import kotlin.coroutines.coroutineContext
 import java.util.concurrent.TimeUnit
 
-class ModelDownloader(
-    private val context: Context,
-    private var filename: String = "Hy-MT2-1.8B-Q4_K_M.gguf",
+class ModelDownloader private constructor(
+    private val modelDirProvider: () -> File,
+    private val baseUrl: String,
+    private var filename: String,
 ) {
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .followRedirects(true)
-        .build()
+    constructor(
+        context: Context,
+        filename: String = "Hy-MT2-1.8B-Q4_K_M.gguf",
+    ) : this(
+        modelDirProvider = { File(context.filesDir, "models").also { it.mkdirs() } },
+        baseUrl = context.getString(R.string.url_hy_mt2_gguf_base),
+        filename = filename,
+    )
+
+    internal constructor(
+        modelDir: File,
+        baseUrl: String,
+        filename: String,
+    ) : this(
+        modelDirProvider = { modelDir.also { it.mkdirs() } },
+        baseUrl = baseUrl,
+        filename = filename,
+    )
+
+    private val client = defaultClient()
 
     private val modelDir: File
-        get() = File(context.filesDir, "models").also { it.mkdirs() }
+        get() = modelDirProvider()
 
     private val modelFile: File
         get() = File(modelDir, filename)
@@ -36,7 +52,7 @@ class ModelDownloader(
     fun isModelDownloaded(): Boolean = modelFile.exists() && modelFile.length() > 100_000_000L
 
     fun download(): Flow<DownloadProgress> = flow {
-        val url = "${context.getString(R.string.url_hy_mt2_gguf_base)}$filename?download=true"
+        val url = "$baseUrl$filename?download=true"
         val tmpFile = File(modelDir, "$filename.tmp")
 
         var existingSize = tmpFile.takeIf { it.exists() }?.length() ?: 0L
@@ -101,4 +117,12 @@ class ModelDownloader(
         }
     }.flowOn(Dispatchers.IO)
 
+    private companion object {
+        fun defaultClient(): OkHttpClient =
+            OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .followRedirects(true)
+                .build()
+    }
 }
