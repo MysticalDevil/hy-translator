@@ -78,7 +78,8 @@
   `State` 类型；模型下载和 AI 资源下载的基础状态已改由 DataStore 持久化并通过 controller 暴露。
 - 下载通知已有前台服务和进度样式，AI 资源下载通知已按 ASR/OCR 拆成稳定 notification id；
   但模型下载、AI 资源下载、UI 状态和通知动作仍未完全统一；
-  通知取消/完成/失败与 UI 的双向绑定和可恢复状态仍是当前最高优先级缺口。
+  通知取消 action 到持久化状态的基础真机测试已补齐，通知完成/失败与 UI 的双向绑定和
+  可恢复状态仍是当前最高优先级缺口。
 - OCR 资源层已有 `AiAsset.OcrPpOcrV5Mobile` 和 `OcrTextRepository` adapter 边界，
   生产入口已切到 Paddle Lite adapter，当前已有 rec 单行识别链路，det 多框 pipeline 待补齐。
 - ASR 资源层和 `VoiceInputRepository` adapter 边界已存在，sherpa-onnx streaming
@@ -105,10 +106,12 @@
 - AI 资源下载通知已拆成 ASR/OCR 独立 notification id，取消 action 也携带 asset id；
   AI 资源下载状态已按 asset 独立持久化，ViewModel 也按 ASR/OCR 分别观察状态。
   `AiAssetDownloadService` 已按 asset 管理下载 job，支持 ASR/OCR 并发下载和分别取消。
-  后续还要补 notification action instrumentation 和进程恢复验收。
+  已新增真机 instrumentation 验证通知取消 action 只清理目标 asset 的持久化下载状态。
+  后续还要补 retry/open action、完成态加载和进程恢复验收。
 - 通知动作已覆盖取消、打开 App 和失败后重试；通知 content intent 已携带模型/AI
   资源下载目标上下文，模型下载通知会打开模型选择入口，AI 资源通知会高亮对应 ASR/OCR
-  资源状态行。后续还缺滚动定位和通知动作 instrumentation 测试。
+  资源状态行。已新增模型下载取消 action 到 DataStore Idle 的真机 instrumentation 测试；
+  后续还缺滚动定位、retry/open action 和完成/失败态测试。
 - UI 取消、通知取消、模型切换、清理资源和 service 自身失败之间还没有完整双向绑定；
   `TranslatorViewModel` 已收集持久化下载状态并按 AI asset 分别映射 UI 状态，但模型下载完成后的
   自动加载语义仍依赖 App 进程存活。
@@ -117,8 +120,8 @@
   确认“下载完成但尚未加载”状态对用户可解释。
 - `onSelectModel()` 会取消当前模型下载、停止 ASR runtime，但保留独立的 ASR/OCR
   资源下载；`onClearAllModels()` 会取消模型下载、AI 资源下载和 ASR runtime。
-  后续仍要补对应 notification action instrumentation 和真机验收。
-- 还缺少下载恢复、通知动作、通知权限拒绝、前台服务被系统重启、
+  后续仍要补这些 UI 入口到 service/notification 的真机验收。
+- 还缺少下载恢复、通知权限拒绝、前台服务被系统重启、
   recent task 划掉后的自动化或手动验收用例。
 
 ### OCR
@@ -329,7 +332,7 @@ DI 默认决策：
   - 通知完成必须触发 repository refresh/load，并让 UI 进入 Ready/Loading/Error。
   - 通知失败必须暴露 typed error，UI 显示明确重试入口。
   - 失败通知已提供直接重试动作；通知 content intent 已携带模型/AI 资源目标上下文。
-    后续需要补 action instrumentation 覆盖。
+    已补取消 action 到持久化状态的真机 instrumentation；后续需要补 retry/open action 覆盖。
   - 切换模型会取消模型下载并停止 ASR runtime；清理模型会取消模型下载、AI 资源下载
     和 ASR runtime。后续补真机通知动作验证。
 - 评估并落地 Google 推荐的用户发起数据传输方案：
@@ -399,7 +402,8 @@ DI 默认决策：
   - 使用 fake file system 或临时目录。
   - 使用 MockWebServer 或等价 fake HTTP source 测试 Range、断点续传、大小校验、取消。
   - 已新增下载状态持久化记录的 JVM 映射测试，覆盖模型/AI 资源下载状态恢复；
-    后续还需补真实 downloader 和 service notification action 测试。
+    已新增 service notification cancel action 的真机 instrumentation 测试；
+    后续还需补真实 downloader、retry/open action 和进程恢复测试。
   - 已新增 AI asset spec JVM 测试，覆盖 OCR PP-OCRv5 mobile 必需文件、URL resource
     和 tar.gz entry 配置。
 - Compose UI 测试：
