@@ -155,6 +155,11 @@
   后续仍要把采集错误、runtime 关闭事件和音量/监听状态扩展为 typed event 或 Flow。
 - 现有 `AsrPartialReceived` / `AsrFinalReceived` 仍保留为 UI event，但真实 `AudioRecord`
   路径已直接通过 repository callback 连接 `TranslatorViewModel`。
+- 已新增标准 WAV 文件 smoke 入口：`scripts/download-asr-smoke-audio.sh` 下载当前
+  sherpa-onnx bilingual Zipformer 模型仓库自带 `test_wavs`，`SherpaOnnxAsrSmokeTest`
+  可在设备已有 ASR 模型资源时把 WAV 文件喂给 streaming recognizer 做真机解码 smoke。
+  大规模标准回归数据源记录在 `docs/asr-smoke-data.md`，包括 LibriSpeech、AISHELL-1
+  和 Common Voice。
 
 ### UI 和状态架构
 
@@ -444,6 +449,8 @@ DI 默认决策：
   - sherpa runtime 初始化失败、麦克风权限拒绝、音频采集失败必须进入 typed error。
   - 当前已覆盖缺模型、缺 native runtime、权限拒绝和 session 启动失败的错误状态；
     音频采集过程中的运行时错误仍需扩展为 typed event 或 Flow。
+  - 已新增文件流 ASR smoke harness：设备上 ASR 模型存在时，instrumented test 会下载
+    sherpa-onnx 标准 test WAV 并验证输出非空；模型未下载时该测试 skip。
 - 录音链路使用 `AudioRecord` adapter：
   - 采集 16 kHz mono PCM。
   - UI 通过麦克风 icon button 触发。

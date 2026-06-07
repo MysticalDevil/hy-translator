@@ -156,6 +156,8 @@ class OnlineStream(var ptr: Long = 0) {
     fun acceptWaveform(samples: FloatArray, sampleRate: Int) =
         acceptWaveform(ptr, samples, sampleRate)
 
+    fun inputFinished() = inputFinished(ptr)
+
     fun release() {
         if (ptr != 0L) {
             delete(ptr)
@@ -164,6 +166,7 @@ class OnlineStream(var ptr: Long = 0) {
     }
 
     private external fun acceptWaveform(ptr: Long, samples: FloatArray, sampleRate: Int)
+    private external fun inputFinished(ptr: Long)
     private external fun delete(ptr: Long)
 
     companion object {

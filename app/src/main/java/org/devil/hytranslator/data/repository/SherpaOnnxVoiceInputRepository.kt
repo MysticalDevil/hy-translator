@@ -16,6 +16,7 @@ import org.devil.hytranslator.domain.model.VoiceInputState
 import org.devil.hytranslator.domain.repository.VoiceInputRepository
 import java.io.File
 import kotlin.concurrent.thread
+import kotlin.math.min
 
 class SherpaOnnxVoiceInputRepository(
     private val nativeLoader: (String) -> Unit = { libraryName ->
@@ -36,9 +37,7 @@ class SherpaOnnxVoiceInputRepository(
         onPartialResult: (String) -> Unit,
         onFinalResult: (String) -> Unit,
     ): VoiceInputState {
-        val missingModelFile = REQUIRED_MODEL_FILES.firstOrNull { fileName ->
-            !File(assetPath, fileName).isFile
-        }
+        val missingModelFile = missingSherpaOnnxModelFile(assetPath)
         if (missingModelFile != null) {
             return VoiceInputState.Error("Missing sherpa-onnx ASR file: $missingModelFile")
         }
@@ -69,7 +68,7 @@ class SherpaOnnxVoiceInputRepository(
         activeSession = null
     }
 
-    private companion object {
+    companion object {
         const val SHERPA_ONNX_JNI_LIBRARY = "sherpa-onnx-jni"
         val REQUIRED_MODEL_FILES = listOf(
             "encoder-epoch-99-avg-1.onnx",
@@ -77,6 +76,11 @@ class SherpaOnnxVoiceInputRepository(
             "joiner-epoch-99-avg-1.onnx",
             "tokens.txt",
         )
+
+        fun missingSherpaOnnxModelFile(assetPath: String): String? =
+            REQUIRED_MODEL_FILES.firstOrNull { fileName ->
+                !File(assetPath, fileName).isFile
+            }
     }
 }
 
@@ -163,36 +167,167 @@ private class AudioRecordSherpaOnnxVoiceInputSession(
     }
 
     private fun processSamples(recognizer: OnlineRecognizer, audioRecord: AudioRecord) {
+        SherpaOnnxStreamingDecoder(recognizer).decodeAudioRecord(
+            audioRecord = audioRecord,
+            recording = { recording },
+            sampleRate = sampleRateInHz,
+            onPartialResult = onPartialResult,
+            onFinalResult = onFinalResult,
+        )
+    }
+
+    private companion object {
+        const val STOP_JOIN_TIMEOUT_MS = 500L
+    }
+}
+
+class SherpaOnnxStreamingFileTranscriber(
+    private val nativeLoader: (String) -> Unit = { libraryName ->
+        System.loadLibrary(libraryName)
+    },
+) {
+    fun transcribe(
+        assetPath: String,
+        samples: FloatArray,
+        sampleRate: Int,
+    ): String {
+        val missingModelFile = SherpaOnnxVoiceInputRepository.missingSherpaOnnxModelFile(assetPath)
+        require(missingModelFile == null) {
+            "Missing sherpa-onnx ASR file: $missingModelFile"
+        }
+        nativeLoader(SHERPA_ONNX_JNI_LIBRARY)
+        val recognizer = createRecognizer(assetPath, sampleRate)
+        return try {
+            SherpaOnnxStreamingDecoder(recognizer).decodeSamples(samples, sampleRate)
+        } finally {
+            recognizer.release()
+        }
+    }
+
+    private fun createRecognizer(assetPath: String, sampleRate: Int): OnlineRecognizer =
+        OnlineRecognizer(
+            assetManager = null,
+            config = OnlineRecognizerConfig(
+                featConfig = FeatureConfig(sampleRate = sampleRate, featureDim = 80),
+                modelConfig = OnlineModelConfig(
+                    transducer = OnlineTransducerModelConfig(
+                        encoder = File(assetPath, "encoder-epoch-99-avg-1.onnx").absolutePath,
+                        decoder = File(assetPath, "decoder-epoch-99-avg-1.onnx").absolutePath,
+                        joiner = File(assetPath, "joiner-epoch-99-avg-1.onnx").absolutePath,
+                    ),
+                    tokens = File(assetPath, "tokens.txt").absolutePath,
+                    numThreads = 2,
+                    modelType = "zipformer",
+                ),
+                endpointConfig = EndpointConfig(
+                    rule1 = EndpointRule(false, 2.4f, 0.0f),
+                    rule2 = EndpointRule(true, 1.4f, 0.0f),
+                    rule3 = EndpointRule(false, 0.0f, 20.0f),
+                ),
+                enableEndpoint = true,
+            ),
+        )
+
+    private companion object {
+        const val SHERPA_ONNX_JNI_LIBRARY = SherpaOnnxVoiceInputRepository.SHERPA_ONNX_JNI_LIBRARY
+    }
+}
+
+private class SherpaOnnxStreamingDecoder(
+    private val recognizer: OnlineRecognizer,
+) {
+    fun decodeAudioRecord(
+        audioRecord: AudioRecord,
+        recording: () -> Boolean,
+        sampleRate: Int,
+        onPartialResult: (String) -> Unit,
+        onFinalResult: (String) -> Unit,
+    ) {
         val stream = recognizer.createStream()
         try {
-            val buffer = ShortArray((0.1 * sampleRateInHz).toInt())
+            val buffer = ShortArray((0.1 * sampleRate).toInt())
             var committedText = ""
-            while (recording) {
+            while (recording()) {
                 val read = audioRecord.read(buffer, 0, buffer.size)
                 if (read <= 0) continue
 
-                val samples = FloatArray(read) { index -> buffer[index] / 32768.0f }
-                stream.acceptWaveform(samples, sampleRateInHz)
-                while (recognizer.isReady(stream)) {
-                    recognizer.decode(stream)
-                }
-
-                val partialText = recognizer.getResult(stream).text
-                if (partialText.isNotBlank()) {
-                    onPartialResult(joinAsrText(committedText, partialText))
-                }
-
-                if (recognizer.isEndpoint(stream)) {
-                    if (partialText.isNotBlank()) {
-                        committedText = joinAsrText(committedText, partialText)
-                        onFinalResult(committedText)
-                    }
-                    recognizer.reset(stream)
-                }
+                val samples = FloatArray(read) { index -> buffer[index] / PCM_16_SCALE }
+                committedText = acceptChunk(
+                    stream = stream,
+                    samples = samples,
+                    sampleRate = sampleRate,
+                    committedText = committedText,
+                    onPartialResult = onPartialResult,
+                    onFinalResult = onFinalResult,
+                )
             }
         } finally {
             stream.release()
         }
+    }
+
+    fun decodeSamples(
+        samples: FloatArray,
+        sampleRate: Int,
+        chunkSize: Int = (0.1 * sampleRate).toInt(),
+    ): String {
+        val stream = recognizer.createStream()
+        try {
+            var committedText = ""
+            var offset = 0
+            while (offset < samples.size) {
+                val end = min(offset + chunkSize, samples.size)
+                committedText = acceptChunk(
+                    stream = stream,
+                    samples = samples.copyOfRange(offset, end),
+                    sampleRate = sampleRate,
+                    committedText = committedText,
+                    onPartialResult = {},
+                    onFinalResult = {},
+                )
+                offset = end
+            }
+
+            stream.acceptWaveform(FloatArray(sampleRate), sampleRate)
+            stream.inputFinished()
+            while (recognizer.isReady(stream)) {
+                recognizer.decode(stream)
+            }
+            val finalText = recognizer.getResult(stream).text
+            return joinAsrText(committedText, finalText)
+        } finally {
+            stream.release()
+        }
+    }
+
+    private fun acceptChunk(
+        stream: OnlineStream,
+        samples: FloatArray,
+        sampleRate: Int,
+        committedText: String,
+        onPartialResult: (String) -> Unit,
+        onFinalResult: (String) -> Unit,
+    ): String {
+        stream.acceptWaveform(samples, sampleRate)
+        while (recognizer.isReady(stream)) {
+            recognizer.decode(stream)
+        }
+
+        val partialText = recognizer.getResult(stream).text
+        if (partialText.isNotBlank()) {
+            onPartialResult(joinAsrText(committedText, partialText))
+        }
+
+        if (!recognizer.isEndpoint(stream)) return committedText
+        if (partialText.isBlank()) {
+            recognizer.reset(stream)
+            return committedText
+        }
+
+        val nextCommittedText = joinAsrText(committedText, partialText)
+        onFinalResult(nextCommittedText)
+        recognizer.reset(stream)
+        return nextCommittedText
     }
 
     private fun joinAsrText(prefix: String, suffix: String): String =
@@ -203,6 +338,6 @@ private class AudioRecordSherpaOnnxVoiceInputSession(
         }
 
     private companion object {
-        const val STOP_JOIN_TIMEOUT_MS = 500L
+        const val PCM_16_SCALE = 32768.0f
     }
 }
