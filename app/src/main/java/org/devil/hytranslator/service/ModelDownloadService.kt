@@ -16,7 +16,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.devil.hytranslator.data.ModelOptions
-import org.devil.hytranslator.data.repository.ModelRepositoryImpl
 import org.devil.hytranslator.domain.model.DownloadProgress
 import org.devil.hytranslator.domain.model.ModelOption
 import org.devil.hytranslator.platform.download.ModelDownloadStateStore
@@ -85,7 +84,7 @@ class ModelDownloadService : Service() {
         )
 
         downloadJob = serviceScope.launch {
-            val repository = ModelRepositoryImpl(applicationContext)
+            val repository = DownloadServiceDependencies.modelRepositoryFactory(applicationContext)
             repository.selectModel(model)
             stateStore.setDownloading(model, null)
             try {

@@ -15,7 +15,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.devil.hytranslator.data.repository.AiAssetRepositoryImpl
 import org.devil.hytranslator.domain.model.AiAsset
 import org.devil.hytranslator.domain.model.DownloadProgress
 import org.devil.hytranslator.platform.download.AiAssetDownloadStateStore
@@ -77,7 +76,7 @@ class AiAssetDownloadService : Service() {
         )
 
         val job = serviceScope.launch {
-            val repository = AiAssetRepositoryImpl(applicationContext)
+            val repository = DownloadServiceDependencies.aiAssetRepositoryFactory(applicationContext)
             stateStore.setDownloading(asset, null)
             try {
                 repository.download(asset).collect { progress ->
