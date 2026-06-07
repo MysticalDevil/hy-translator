@@ -46,6 +46,35 @@ class DownloadServiceRetryTest {
     }
 
     @Test
+    fun modelStartAction_persistsCompletedState() = runBlocking {
+        val model = ModelOptions.getByKey("Q4_K_M")
+        modelStateStore.setIdle()
+        DownloadServiceDependencies.modelRepositoryFactory = {
+            FakeModelRepository(model, DownloadProgress.Completed(MODEL_PATH))
+        }
+
+        startForegroundService(
+            Intent(context, ModelDownloadService::class.java)
+                .setAction(ModelDownloadService.ACTION_START)
+                .putExtra(ModelDownloadService.EXTRA_MODEL_KEY, model.key),
+        )
+
+        val state = withTimeout(5_000) {
+            modelStateStore.state.first { it is ModelDownloadState.Completed }
+        }
+
+        assertEquals(
+            ModelDownloadState.Completed(
+                model = model,
+                path = MODEL_PATH,
+                attempt = 1L,
+                jobId = "model:Q4_K_M:1",
+            ),
+            state,
+        )
+    }
+
+    @Test
     fun modelStartAction_afterErrorPersistsNewRetryAttempt() = runBlocking {
         val model = ModelOptions.getByKey("Q4_K_M")
         modelStateStore.setError(model, "network failed")
@@ -72,6 +101,35 @@ class DownloadServiceRetryTest {
                 message = RETRY_FAILED_MESSAGE,
                 attempt = 2L,
                 jobId = "model:Q4_K_M:2",
+            ),
+            state,
+        )
+    }
+
+    @Test
+    fun aiAssetStartAction_persistsCompletedState() = runBlocking {
+        aiAssetStateStore.setIdle(AiAsset.OcrPpOcrV5Mobile)
+        DownloadServiceDependencies.aiAssetRepositoryFactory = {
+            FakeAiAssetRepository(DownloadProgress.Completed(AI_ASSET_PATH))
+        }
+
+        startForegroundService(
+            Intent(context, AiAssetDownloadService::class.java)
+                .setAction(AiAssetDownloadService.ACTION_START)
+                .putExtra(AiAssetDownloadService.EXTRA_ASSET, AiAsset.OcrPpOcrV5Mobile.name),
+        )
+
+        val state = withTimeout(5_000) {
+            aiAssetStateStore.state(AiAsset.OcrPpOcrV5Mobile)
+                .first { it is AiAssetDownloadState.Completed }
+        }
+
+        assertEquals(
+            AiAssetDownloadState.Completed(
+                asset = AiAsset.OcrPpOcrV5Mobile,
+                path = AI_ASSET_PATH,
+                attempt = 1L,
+                jobId = "ai:OcrPpOcrV5Mobile:1",
             ),
             state,
         )
@@ -161,6 +219,8 @@ class DownloadServiceRetryTest {
     }
 
     private companion object {
+        const val MODEL_PATH = "/tmp/model.gguf"
+        const val AI_ASSET_PATH = "/tmp/ocr"
         const val RETRY_FAILED_MESSAGE = "retry failed"
     }
 }

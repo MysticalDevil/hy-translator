@@ -120,9 +120,10 @@
   打开 `MainActivity` 后触发模型选择/AI 资源高亮的真机 instrumentation 测试，覆盖首次打开和
   `onNewIntent` 复用路径；已抽出通知 intent 工厂并新增真机 instrumentation 覆盖
   retry/cancel/content intent 的 action、component 和 extras。后续还缺滚动定位、真实 retry
-  端到端和 service 级完成/失败态测试。已新增可控 fake repository 的 service retry
+  端到端。已新增可控 fake repository 的 service action
   真机 instrumentation，覆盖模型和 AI asset 从失败态收到 `ACTION_START` 后生成新的
-  attempt/jobId 并由 service 写回错误态；真实网络下载 retry 仍待 smoke 验收。
+  attempt/jobId 并由 service 写回错误态，也覆盖 `ACTION_START` 完成后持久化 Completed；
+  真实网络下载 retry 仍待 smoke 验收。
 - UI 取消、通知取消、模型切换、清理资源和 service 自身失败之间还没有完整双向绑定；
   `TranslatorViewModel` 已收集持久化下载状态并按 AI asset 分别映射 UI 状态；主界面已新增
   模型下载取消按钮，以及 ASR/OCR 资源下载中的独立取消按钮，UI 事件会调用对应 controller 并
@@ -439,8 +440,8 @@ DI 默认决策：
     已新增通知 retry/cancel/open intent 工厂的真机 instrumentation 测试；
     已新增 DataStore job id/attempt/speed 元数据真机测试，覆盖模型和 ASR/OCR 资源下载的
     retry 计数、稳定 job id 和速度计算；
-    已新增 service `ACTION_START` retry 真机测试，使用 fake repository 覆盖失败后重试会进入
-    新 attempt/jobId 并由 service 写回终态；
+    已新增 service `ACTION_START` 真机测试，使用 fake repository 覆盖完成态持久化和
+    失败后重试会进入新 attempt/jobId 并由 service 写回终态；
     后续还需补真实网络 retry 端到端和真实 service/recent task 恢复测试。
   - 已新增 AI asset spec JVM 测试，覆盖 OCR PP-OCRv5 mobile 必需文件、URL resource
     和 tar.gz entry 配置。
