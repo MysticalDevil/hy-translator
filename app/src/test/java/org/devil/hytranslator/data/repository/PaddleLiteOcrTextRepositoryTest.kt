@@ -99,7 +99,8 @@ class PaddleLiteOcrTextRepositoryTest {
         }
 
         assertEquals(
-            "PaddleOCR label dictionary is smaller than recognition output classes",
+            "PaddleOCR label dictionary size 1 is smaller than recognition output classes 2 " +
+                "for shape [1, 1, 2]",
             error.message,
         )
     }

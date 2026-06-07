@@ -127,6 +127,7 @@ class PaddleLiteOcrSession(
         add("#")
         addAll(labels)
         add(" ")
+        add("")
     }
 
     fun ensureReady() {
@@ -538,7 +539,8 @@ object PaddleOcrCtcDecoder {
             "PaddleOCR recognition output data is shorter than its shape"
         }
         require(dictionary.size >= classes) {
-            "PaddleOCR label dictionary is smaller than recognition output classes"
+            "PaddleOCR label dictionary size ${dictionary.size} is smaller than " +
+                "recognition output classes $classes for shape ${shape.toList()}"
         }
 
         val text = StringBuilder()
