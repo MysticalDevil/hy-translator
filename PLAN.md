@@ -81,7 +81,8 @@
   通知取消 action 到持久化状态的基础真机测试已补齐，通知完成/失败与 UI 的双向绑定和
   可恢复状态仍是当前最高优先级缺口。
 - OCR 资源层已有 `AiAsset.OcrPpOcrV5Mobile` 和 `OcrTextRepository` adapter 边界，
-  生产入口已切到 Paddle Lite adapter，当前已有 rec 单行识别链路，det 多框 pipeline 待补齐。
+  生产入口已切到 Paddle Lite adapter，det + rec 多框链路已接入，并已在真机使用
+  PP-OCRv5 mobile 资源和 PaddleOCR 标准图片通过非 skip smoke。
 - ASR 资源层和 `VoiceInputRepository` adapter 边界已存在，sherpa-onnx streaming
   Zipformer runtime、`AudioRecord` 和 partial/final result 回写已接入，仍待真机端到端 smoke。
 - `app` 已有 ViewModel 单元测试、OCR workflow 单元测试、Compose UI 测试和
@@ -179,6 +180,8 @@
 - 已新增标准图片 smoke 入口：`scripts/download-ocr-smoke-images.sh` 下载 PaddleOCR/PaddleX
   demo 图片，`PaddleLiteOcrSmokeTest` 可在设备已有 OCR 模型资源时把标准图片喂给
   Paddle Lite PP-OCRv5 mobile det + rec runtime 做真机 smoke；模型未下载时测试显式 skip。
+  已在 Pixel 7 Pro 真机准备 `PP-OCRv5_mobile_det.nb`、`PP-OCRv5_mobile_rec.nb` 和
+  `ppocr_keys_ocrv5.txt` 后跑通该 smoke，测试报告为 `tests=1 failures=0 skipped=0`。
   OCR 和 ASR 一样保留“小样本 smoke + 大规模标准数据离线回归”的结构。大规模标准回归数据源
   记录在 `docs/ocr-smoke-data.md`，包括 ICDAR 2015、COCO-Text 和 PaddleOCR dataset index。
 
