@@ -610,6 +610,32 @@ class TranslatorViewModelTest {
     }
 
     @Test
+    fun initialize_whenDifferentModelDownloadCompletes_doesNotLoadOrNotify() = runTest {
+        val translatorRepository = FakeTranslatorRepository(isReady = false)
+        val modelRepository = FakeModelRepository()
+        val downloadActions = FakeModelDownloadActions()
+        val notifications = FakeModelDownloadNotifications()
+        val viewModel = createViewModel(
+            translatorRepository = translatorRepository,
+            modelRepository = modelRepository,
+            downloadActions = downloadActions,
+            notifications = notifications,
+        )
+
+        viewModel.initialize()
+        advanceUntilIdle()
+        downloadActions.mutableState.value = ModelDownloadState.Completed(
+            model = testModel("Q6_K"),
+            path = "/models/other.gguf",
+        )
+        advanceUntilIdle()
+
+        assertSame(ModelStatus.NotDownloaded, viewModel.uiState.value.modelStatus)
+        assertEquals(0, translatorRepository.loadCalls)
+        assertFalse(notifications.completed)
+    }
+
+    @Test
     fun initialize_whenDownloadErrorArrives_showsModelError() = runTest {
         val downloadActions = FakeModelDownloadActions()
         val modelRepository = FakeModelRepository()

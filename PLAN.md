@@ -132,7 +132,8 @@
   通知/service Idle 回写。模型下载完成后的自动加载语义仍依赖 App 进程存活。
 - 模型下载完成后由 service 持久化 Completed 并显示明确的下载完成通知；ViewModel 在 App
   存活或下次启动观察到 Completed 后加载模型并补发完成通知；已新增 ViewModel 单元测试覆盖
-  Completed 加载、重复 Completed 去重和 Error 状态显示。后续仍要补进程死亡恢复验收，
+  Completed 加载、重复 Completed 去重、非当前 selected model 的 Completed 隔离和 Error
+  状态显示。后续仍要补进程死亡恢复验收，
   确认“下载完成但尚未加载”状态对用户可解释。
 - `onSelectModel()` 会取消当前模型下载、停止 ASR runtime，但保留独立的 ASR/OCR
   资源下载；`onClearAllModels()` 会取消模型下载、AI 资源下载和 ASR runtime。
