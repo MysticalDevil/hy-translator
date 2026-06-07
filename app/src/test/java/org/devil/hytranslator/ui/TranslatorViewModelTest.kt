@@ -241,7 +241,7 @@ class TranslatorViewModelTest {
             asrState.value = AiAssetState.Ready
         }
         val voiceInputRepository = FakeVoiceInputRepository(
-            onStart = { _, onPartialResult, _ -> onPartialResult("hello") },
+            onStart = { _, onPartialResult, _, _ -> onPartialResult("hello") },
         )
         val viewModel = createViewModel(
             aiAssetRepository = aiAssetRepository,
@@ -254,6 +254,29 @@ class TranslatorViewModelTest {
         advanceUntilIdle()
 
         assertEquals("hello", viewModel.uiState.value.inputText)
+    }
+
+    @Test
+    fun voiceInput_whenRepositoryReportsRuntimeError_showsErrorState() = runTest {
+        val aiAssetRepository = FakeAiAssetRepository().apply {
+            asrState.value = AiAssetState.Ready
+        }
+        val voiceInputRepository = FakeVoiceInputRepository()
+        val viewModel = createViewModel(
+            aiAssetRepository = aiAssetRepository,
+            voiceInputRepository = voiceInputRepository,
+        )
+
+        viewModel.initialize()
+        advanceUntilIdle()
+        viewModel.onEvent(TranslatorEvent.VoiceInputToggled(true))
+        advanceUntilIdle()
+        voiceInputRepository.reportRuntimeError("AudioRecord read failed")
+
+        assertEquals(
+            VoiceInputState.Error("AudioRecord read failed"),
+            viewModel.uiState.value.voiceInputState,
+        )
     }
 
     @Test
@@ -898,25 +921,33 @@ class TranslatorViewModelTest {
             assetPath: String,
             onPartialResult: (String) -> Unit,
             onFinalResult: (String) -> Unit,
-        ) -> Unit = { _, _, _ -> },
+            onError: (String) -> Unit,
+        ) -> Unit = { _, _, _, _ -> },
     ) : VoiceInputRepository {
         var startedAssetPath: String? = null
             private set
         var stopped = false
             private set
+        private var onError: ((String) -> Unit)? = null
 
         override suspend fun start(
             assetPath: String,
             onPartialResult: (String) -> Unit,
             onFinalResult: (String) -> Unit,
+            onError: (String) -> Unit,
         ): VoiceInputState {
             startedAssetPath = assetPath
-            onStart(assetPath, onPartialResult, onFinalResult)
+            this.onError = onError
+            onStart(assetPath, onPartialResult, onFinalResult, onError)
             return VoiceInputState.Listening
         }
 
         override fun stop() {
             stopped = true
+        }
+
+        fun reportRuntimeError(message: String) {
+            onError?.invoke(message)
         }
     }
 

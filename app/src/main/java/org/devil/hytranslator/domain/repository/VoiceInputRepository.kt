@@ -7,6 +7,7 @@ interface VoiceInputRepository {
         assetPath: String,
         onPartialResult: (String) -> Unit,
         onFinalResult: (String) -> Unit,
+        onError: (String) -> Unit,
     ): VoiceInputState
 
     fun stop()

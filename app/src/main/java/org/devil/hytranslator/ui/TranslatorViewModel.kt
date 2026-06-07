@@ -220,6 +220,7 @@ class TranslatorViewModel(
                 aiAssetRepository.localPath(AiAsset.AsrStreamingZipformer),
                 onPartialResult = ::onAsrTextReceived,
                 onFinalResult = ::onAsrTextReceived,
+                onError = ::onVoiceInputRuntimeError,
             )
             _uiState.update { it.copy(voiceInputState = nextState) }
         }
@@ -229,6 +230,10 @@ class TranslatorViewModel(
         voiceInputJob?.cancel()
         voiceInputJob = null
         voiceInputRepository.stop()
+        _uiState.update { it.copy(voiceInputState = VoiceInputState.Error(message)) }
+    }
+
+    fun onVoiceInputRuntimeError(message: String) {
         _uiState.update { it.copy(voiceInputState = VoiceInputState.Error(message)) }
     }
 

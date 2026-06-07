@@ -233,7 +233,9 @@
   当前采用官方 release 产物生成流程；`k2-fsa/sherpa-onnx` 已作为 submodule 加入，用作
   Kotlin/JNI API 上游参照。
 - `VoiceInputRepository.start()` 已改为 callback 驱动，能表达 streaming partial/final result；
-  后续仍要把采集错误、runtime 关闭事件和音量/监听状态扩展为 typed event 或 Flow。
+  采集/streaming 运行时错误已通过 `onError` callback 回写为 `VoiceInputState.Error`，
+  并有 ViewModel JVM 回归测试覆盖。后续仍要把 runtime 关闭事件和音量/监听状态扩展为
+  typed event 或 Flow。
 - 现有 `AsrPartialReceived` / `AsrFinalReceived` 仍保留为 UI event，但真实 `AudioRecord`
   路径已直接通过 repository callback 连接 `TranslatorViewModel`。
 - 已新增标准 WAV 文件 smoke 入口：`scripts/download-asr-smoke-audio.sh` 下载当前
@@ -577,8 +579,8 @@ DI 默认决策：
   - final result 固化输入框，并在实时翻译开启时触发输出。
   - 通知/后台/切屏不应破坏正在进行的资源下载。
   - sherpa runtime 初始化失败、麦克风权限拒绝、音频采集失败必须进入 typed error。
-  - 当前已覆盖缺模型、缺 native runtime、权限拒绝和 session 启动失败的错误状态；
-    音频采集过程中的运行时错误仍需扩展为 typed event 或 Flow。
+  - 当前已覆盖缺模型、缺 native runtime、权限拒绝、session 启动失败和音频采集/streaming
+    运行时错误状态；后续仍需把 runtime 关闭事件和音量/监听状态扩展为 typed event 或 Flow。
 - 已新增文件流 ASR smoke harness：设备上 ASR 模型存在时，instrumented test 会下载
     sherpa-onnx 标准 test WAV 并验证输出非空；模型未下载时该测试 skip。带内置模型的
     debug APK 已用 `adb am instrument` 跑通该 smoke。

@@ -26,8 +26,14 @@ class SherpaOnnxVoiceInputRepository(
         assetPath: String,
         onPartialResult: (String) -> Unit,
         onFinalResult: (String) -> Unit,
-    ) -> VoiceInputSession = { assetPath, onPartialResult, onFinalResult ->
-        AudioRecordSherpaOnnxVoiceInputSession(assetPath, onPartialResult, onFinalResult)
+        onError: (String) -> Unit,
+    ) -> VoiceInputSession = { assetPath, onPartialResult, onFinalResult, onError ->
+        AudioRecordSherpaOnnxVoiceInputSession(
+            assetPath = assetPath,
+            onPartialResult = onPartialResult,
+            onFinalResult = onFinalResult,
+            onError = onError,
+        )
     },
 ) : VoiceInputRepository {
     private var activeSession: VoiceInputSession? = null
@@ -36,6 +42,7 @@ class SherpaOnnxVoiceInputRepository(
         assetPath: String,
         onPartialResult: (String) -> Unit,
         onFinalResult: (String) -> Unit,
+        onError: (String) -> Unit,
     ): VoiceInputState {
         val missingModelFile = missingSherpaOnnxModelFile(assetPath)
         if (missingModelFile != null) {
@@ -51,7 +58,7 @@ class SherpaOnnxVoiceInputRepository(
         }
 
         stop()
-        val session = sessionFactory(assetPath, onPartialResult, onFinalResult)
+        val session = sessionFactory(assetPath, onPartialResult, onFinalResult, onError)
         val started = session.start()
         if (started.isFailure) {
             session.stop()
@@ -93,6 +100,7 @@ private class AudioRecordSherpaOnnxVoiceInputSession(
     private val assetPath: String,
     private val onPartialResult: (String) -> Unit,
     private val onFinalResult: (String) -> Unit,
+    private val onError: (String) -> Unit,
 ) : VoiceInputSession {
     private val sampleRateInHz = 16000
     private val channelConfig = AudioFormat.CHANNEL_IN_MONO
@@ -149,7 +157,12 @@ private class AudioRecordSherpaOnnxVoiceInputSession(
         recording = true
         nextAudioRecord.startRecording()
         worker = thread(start = true, name = "sherpa-onnx-asr") {
-            processSamples(nextRecognizer, nextAudioRecord)
+            runCatching {
+                processSamples(nextRecognizer, nextAudioRecord)
+            }.onFailure { error ->
+                recording = false
+                onError(error.message ?: "sherpa-onnx ASR runtime failed")
+            }
         }
     }
 
@@ -249,6 +262,9 @@ private class SherpaOnnxStreamingDecoder(
             var committedText = ""
             while (recording()) {
                 val read = audioRecord.read(buffer, 0, buffer.size)
+                check(read >= 0) {
+                    "AudioRecord read failed: $read"
+                }
                 if (read <= 0) continue
 
                 val samples = FloatArray(read) { index -> buffer[index] / PCM_16_SCALE }
