@@ -128,11 +128,11 @@
   通知目标 extra 到 `NotificationDestination` 的 JVM 回归测试已补齐，并已新增通知 intent
   打开 `MainActivity` 后触发模型选择/AI 资源高亮的真机 instrumentation 测试，覆盖首次打开和
   `onNewIntent` 复用路径；已抽出通知 intent 工厂并新增真机 instrumentation 覆盖
-  retry/cancel/content intent 的 action、component 和 extras。后续还缺滚动定位、真实 retry
-  端到端。已新增可控 fake repository 的 service action
+  retry/cancel/content intent 的 action、component 和 extras。后续还缺滚动定位和真机大资源
+  网络 smoke。已新增可控 fake repository 的 service action
   真机 instrumentation，覆盖模型和 AI asset 从失败态收到 `ACTION_START` 后生成新的
   attempt/jobId 并由 service 写回错误态，也覆盖 `ACTION_START` 完成后持久化 Completed；
-  真实网络下载 retry 仍待 smoke 验收。
+  下载器层已新增本地 HTTP retry 验收，覆盖 5xx 自动重试和连接中断后 Range 断点续传。
 - UI 取消、通知取消、模型切换、清理资源和 service 自身失败之间还没有完整双向绑定；
   `TranslatorViewModel` 已收集持久化下载状态并按 AI asset 分别映射 UI 状态；主界面已新增
   模型下载取消按钮，以及 ASR/OCR 资源下载中的独立取消按钮，UI 事件会调用对应 controller 并
@@ -368,7 +368,7 @@ DI 默认决策：
   - 通知失败必须暴露 typed error，UI 显示明确重试入口。
   - 失败通知已提供直接重试动作；通知 content intent 已携带模型/AI 资源目标上下文。
     已补取消 action 到持久化状态的真机 instrumentation；已补 retry/open intent action 和
-    extras 覆盖。后续需要补真实 retry 端到端覆盖。
+    extras 覆盖。后续需要补真机大资源网络 smoke。
   - service/通知取消写入 Idle 后，ViewModel 已把正在下载的模型或目标 ASR/OCR 资源回写为
     NotDownloaded，不会影响其他资源状态，也不会用初始 Idle 覆盖 Ready 状态。
   - 切换模型会取消模型下载并停止 ASR runtime；清理模型会取消模型下载、AI 资源下载
@@ -460,9 +460,10 @@ DI 默认决策：
   - 使用 fake file system 或临时目录。
   - 使用 MockWebServer 或等价 fake HTTP source 测试 Range、断点续传、大小校验、取消。
   - 已新增下载状态持久化记录的 JVM 映射测试，覆盖模型/AI 资源下载状态恢复；
-    已新增 `ModelDownloader` 本地 HTTP JVM 测试，覆盖下载成功、HTTP error 和 Range 续传；
+    已新增 `ModelDownloader` 本地 HTTP JVM 测试，覆盖下载成功、HTTP error、Range 续传、
+    5xx 自动重试和连接中断后的 Range 断点续传；
     已新增 `AiAssetFileDownloader` 本地 HTTP JVM 测试，覆盖 direct 文件下载、tar.gz entry
-    解包和 Range 续传；
+    解包、Range 续传、5xx 自动重试和连接中断后的 Range 断点续传；
     已新增 `ModelDownloader` 和 `AiAssetFileDownloader` 取消测试，覆盖下载中取消不会
     finalize 部分文件；
     已新增 service notification cancel action 的真机 instrumentation 测试；
@@ -474,7 +475,7 @@ DI 默认决策：
     失败后重试会进入新 attempt/jobId 并由 service 写回终态；
     已新增真机 task removed 测试，覆盖模型下载和 OCR 资源下载的 foreground service 在
     `am stack remove` 后持久化 interrupted error；
-    后续还需补真实网络 retry 端到端和真实 service 重启恢复测试。
+    后续还需补真机大资源网络 smoke 和真实 service 重启恢复测试。
   - 已新增 AI asset spec JVM 测试，覆盖 OCR PP-OCRv5 mobile 必需文件、URL resource
     和 tar.gz entry 配置。
 - Compose UI 测试：

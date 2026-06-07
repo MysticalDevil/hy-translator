@@ -16,6 +16,7 @@ import java.io.Closeable
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 class ModelDownloaderTest {
@@ -89,6 +90,68 @@ class ModelDownloaderTest {
     }
 
     @Test
+    fun download_retriesServerErrorAndCompletes() = runTest {
+        val requestCount = AtomicInteger()
+        LocalHttpServer { exchange ->
+            if (requestCount.incrementAndGet() == 1) {
+                exchange.respond(status = 503, body = "unavailable".toByteArray())
+            } else {
+                exchange.respond(status = 200, body = MODEL_BYTES)
+            }
+        }.use { server ->
+            val downloader = ModelDownloader(
+                modelDir = temporaryFolder.newFolder("models"),
+                baseUrl = server.baseUrl,
+                filename = MODEL_NAME,
+            )
+
+            val progress = downloader.download().toList()
+
+            assertEquals(2, requestCount.get())
+            assertEquals(
+                DownloadProgress.Completed(downloader.getModelPath()),
+                progress.last(),
+            )
+            assertEquals(MODEL_TEXT, java.io.File(downloader.getModelPath()).readText())
+        }
+    }
+
+    @Test
+    fun download_retriesInterruptedBodyWithRangeRequest() = runTest {
+        val requestCount = AtomicInteger()
+        val observedRange = AtomicReference<String?>()
+        LocalHttpServer { exchange ->
+            if (requestCount.incrementAndGet() == 1) {
+                exchange.respondAndCloseEarly(
+                    status = 200,
+                    declaredSize = MODEL_BYTES.size.toLong(),
+                    body = "abc".toByteArray(),
+                )
+            } else {
+                observedRange.set(exchange.requestHeaders.getFirst("Range"))
+                exchange.responseHeaders.add("Content-Range", "bytes 3-5/6")
+                exchange.respond(status = 206, body = "def".toByteArray())
+            }
+        }.use { server ->
+            val downloader = ModelDownloader(
+                modelDir = temporaryFolder.newFolder("models"),
+                baseUrl = server.baseUrl,
+                filename = MODEL_NAME,
+            )
+
+            val progress = downloader.download().toList()
+
+            assertEquals(2, requestCount.get())
+            assertEquals("bytes=3-", observedRange.get())
+            assertEquals(
+                DownloadProgress.Completed(downloader.getModelPath()),
+                progress.last(),
+            )
+            assertEquals(MODEL_TEXT, java.io.File(downloader.getModelPath()).readText())
+        }
+    }
+
+    @Test
     fun download_whenCollectorCancels_doesNotFinalizePartialFile() = runTest {
         LocalHttpServer { exchange ->
             exchange.respondSlowly(status = 200, body = ByteArray(PARTIAL_CANCEL_BYTES) { 1 })
@@ -151,6 +214,18 @@ class ModelDownloaderTest {
                 } catch (_: IOException) {
                     // The cancellation test closes the client after the first chunk.
                 }
+            }
+        }
+
+        fun HttpExchange.respondAndCloseEarly(
+            status: Int,
+            declaredSize: Long,
+            body: ByteArray,
+        ) {
+            sendResponseHeaders(status, declaredSize)
+            responseBody.use { output ->
+                output.write(body)
+                output.flush()
             }
         }
 

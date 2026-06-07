@@ -17,6 +17,7 @@ import java.io.Closeable
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.zip.GZIPOutputStream
 
@@ -108,6 +109,74 @@ class AiAssetFileDownloaderTest {
     }
 
     @Test
+    fun downloadFile_retriesServerErrorAndCompletes() = runTest {
+        val requestCount = AtomicInteger()
+        val fileSpec = AiAssetFileSpec(
+            name = "tokens.txt",
+            minBytes = DIRECT_TEXT.length.toLong(),
+            source = AiAssetFileSource.Direct(urlResId = 0),
+        )
+        LocalHttpServer { exchange ->
+            if (requestCount.incrementAndGet() == 1) {
+                exchange.respond(status = 503, body = "unavailable".toByteArray())
+            } else {
+                exchange.respond(status = 200, body = DIRECT_TEXT.toByteArray())
+            }
+        }.use { server ->
+            val dir = temporaryFolder.newFolder("asset")
+
+            val progress = AiAssetFileDownloader()
+                .downloadFile(dir = dir, fileSpec = fileSpec, url = server.baseUrl)
+                .toList()
+
+            assertEquals(2, requestCount.get())
+            assertEquals(
+                DownloadProgress.Completed(java.io.File(dir, fileSpec.name).absolutePath),
+                progress.last(),
+            )
+            assertEquals(DIRECT_TEXT, java.io.File(dir, fileSpec.name).readText())
+        }
+    }
+
+    @Test
+    fun downloadFile_retriesInterruptedBodyWithRangeRequest() = runTest {
+        val requestCount = AtomicInteger()
+        val observedRange = AtomicReference<String?>()
+        val fileSpec = AiAssetFileSpec(
+            name = "encoder.onnx",
+            minBytes = DIRECT_TEXT.length.toLong(),
+            source = AiAssetFileSource.Direct(urlResId = 0),
+        )
+        LocalHttpServer { exchange ->
+            if (requestCount.incrementAndGet() == 1) {
+                exchange.respondAndCloseEarly(
+                    status = 200,
+                    declaredSize = DIRECT_TEXT.length.toLong(),
+                    body = "abc".toByteArray(),
+                )
+            } else {
+                observedRange.set(exchange.requestHeaders.getFirst("Range"))
+                exchange.responseHeaders.add("Content-Range", "bytes 3-5/6")
+                exchange.respond(status = 206, body = "def".toByteArray())
+            }
+        }.use { server ->
+            val dir = temporaryFolder.newFolder("asset")
+
+            val progress = AiAssetFileDownloader()
+                .downloadFile(dir = dir, fileSpec = fileSpec, url = server.baseUrl)
+                .toList()
+
+            assertEquals(2, requestCount.get())
+            assertEquals("bytes=3-", observedRange.get())
+            assertEquals(
+                DownloadProgress.Completed(java.io.File(dir, fileSpec.name).absolutePath),
+                progress.last(),
+            )
+            assertEquals(DIRECT_TEXT, java.io.File(dir, fileSpec.name).readText())
+        }
+    }
+
+    @Test
     fun downloadFile_whenCollectorCancels_doesNotFinalizePartialFile() = runTest {
         val fileSpec = AiAssetFileSpec(
             name = "encoder.onnx",
@@ -175,6 +244,18 @@ class AiAssetFileDownloaderTest {
                 } catch (_: IOException) {
                     // The cancellation test closes the client after the first chunk.
                 }
+            }
+        }
+
+        fun HttpExchange.respondAndCloseEarly(
+            status: Int,
+            declaredSize: Long,
+            body: ByteArray,
+        ) {
+            sendResponseHeaders(status, declaredSize)
+            responseBody.use { output ->
+                output.write(body)
+                output.flush()
             }
         }
 

@@ -10,6 +10,7 @@ import okhttp3.Request
 import org.devil.hytranslator.domain.model.DownloadProgress
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPInputStream
@@ -17,6 +18,7 @@ import kotlin.coroutines.coroutineContext
 
 internal class AiAssetFileDownloader(
     private val client: OkHttpClient = defaultClient(),
+    private val maxAttempts: Int = DEFAULT_MAX_ATTEMPTS,
 ) {
     fun downloadFile(
         dir: File,
@@ -31,84 +33,129 @@ internal class AiAssetFileDownloader(
             is AiAssetFileSource.TarGz -> File(dir, "${fileSpec.name}.tar.gz.tmp")
         }
 
-        var existingSize = downloadFile.takeIf { it.exists() }?.length() ?: 0L
-        val requestBuilder = Request.Builder().url(url)
-        if (existingSize > 0) {
-            requestBuilder.header("Range", "bytes=$existingSize-")
-        }
+        var lastError: DownloadProgress.Error? = null
+        repeat(maxAttempts) { attempt ->
+            var existingSize = downloadFile.takeIf { it.exists() }?.length() ?: 0L
+            val requestBuilder = Request.Builder().url(url)
+            if (existingSize > 0) {
+                requestBuilder.header("Range", "bytes=$existingSize-")
+            }
 
-        client.newCall(requestBuilder.build()).execute().use { response ->
-            if (existingSize > 0 && response.code != 206) {
-                if (!downloadFile.delete()) {
-                    emit(DownloadProgress.Error("Cannot restart partial download"))
+            try {
+                client.newCall(requestBuilder.build()).execute().use { response ->
+                    if (existingSize > 0 && response.code != 206) {
+                        if (!downloadFile.delete()) {
+                            emit(DownloadProgress.Error("Cannot restart partial download"))
+                            return@flow
+                        }
+                        existingSize = 0L
+                    }
+
+                    if (!response.isSuccessful) {
+                        lastError = DownloadProgress.Error(
+                            "HTTP ${response.code} while downloading ${fileSpec.name}",
+                        )
+                        if (response.code.isRetryableHttpStatus() && attempt.hasAttemptsRemaining()) {
+                            return@repeat
+                        }
+                        emit(
+                            lastError ?: DownloadProgress.Error(
+                                "HTTP ${response.code} while downloading ${fileSpec.name}",
+                            ),
+                        )
+                        return@flow
+                    }
+
+                    val responseBody = response.body
+                    val totalSize = if (existingSize > 0) {
+                        val contentRange = response.header("Content-Range")
+                        contentRange?.substringAfter("/")?.toLongOrNull()
+                            ?: responseBody.contentLength().let { existingSize + it }
+                    } else {
+                        responseBody.contentLength()
+                    }
+
+                    FileOutputStream(downloadFile, existingSize > 0).use { output ->
+                        responseBody.byteStream().use { source ->
+                            val buffer = ByteArray(8192)
+                            var bytesRead: Int
+                            var downloaded = existingSize
+                            emit(DownloadProgress.Started(totalSize, existingSize))
+
+                            while (source.read(buffer).also { bytesRead = it } != -1) {
+                                coroutineContext.ensureActive()
+                                output.write(buffer, 0, bytesRead)
+                                downloaded += bytesRead
+                                emit(DownloadProgress.Downloading(downloaded, totalSize))
+                            }
+                        }
+                    }
+
+                    if (totalSize > 0 && downloadFile.length() != totalSize) {
+                        lastError = DownloadProgress.Error("Incomplete download for ${fileSpec.name}")
+                        if (attempt.hasAttemptsRemaining()) {
+                            return@repeat
+                        }
+                        emit(
+                            lastError ?: DownloadProgress.Error(
+                                "Incomplete download for ${fileSpec.name}",
+                            ),
+                        )
+                        return@flow
+                    }
+
+                    coroutineContext.ensureActive()
+                    when (val source = fileSpec.source) {
+                        is AiAssetFileSource.Direct -> {
+                            if (!moveDownloadedFile(downloadFile, finalFile, fileSpec)) {
+                                emit(DownloadProgress.Error("Cannot finalize ${fileSpec.name}"))
+                                return@flow
+                            }
+                        }
+
+                        is AiAssetFileSource.TarGz -> {
+                            val extracted = extractTarGzEntry(
+                                archive = downloadFile,
+                                entryName = source.entryName,
+                                target = tmpFile,
+                            )
+                            if (!extracted) {
+                                emit(DownloadProgress.Error("${source.entryName} was not found in archive"))
+                                return@flow
+                            }
+                            if (!downloadFile.delete()) {
+                                emit(DownloadProgress.Error("Cannot remove temporary archive for ${fileSpec.name}"))
+                                return@flow
+                            }
+                            if (!moveDownloadedFile(tmpFile, finalFile, fileSpec)) {
+                                emit(DownloadProgress.Error("Cannot finalize ${fileSpec.name}"))
+                                return@flow
+                            }
+                        }
+                    }
+
+                    emit(DownloadProgress.Completed(finalFile.absolutePath))
                     return@flow
                 }
-                existingSize = 0L
-            }
-
-            if (!response.isSuccessful) {
-                emit(DownloadProgress.Error("HTTP ${response.code} while downloading ${fileSpec.name}"))
-                return@flow
-            }
-
-            val responseBody = response.body
-            val totalSize = if (existingSize > 0) {
-                val contentRange = response.header("Content-Range")
-                contentRange?.substringAfter("/")?.toLongOrNull()
-                    ?: responseBody.contentLength().let { existingSize + it }
-            } else {
-                responseBody.contentLength()
-            }
-
-            FileOutputStream(downloadFile, existingSize > 0).use { output ->
-                responseBody.byteStream().use { source ->
-                    val buffer = ByteArray(8192)
-                    var bytesRead: Int
-                    var downloaded = existingSize
-                    emit(DownloadProgress.Started(totalSize, existingSize))
-
-                    while (source.read(buffer).also { bytesRead = it } != -1) {
-                        coroutineContext.ensureActive()
-                        output.write(buffer, 0, bytesRead)
-                        downloaded += bytesRead
-                        emit(DownloadProgress.Downloading(downloaded, totalSize))
-                    }
-                }
-            }
-
-            coroutineContext.ensureActive()
-            when (val source = fileSpec.source) {
-                is AiAssetFileSource.Direct -> {
-                    if (!moveDownloadedFile(downloadFile, finalFile, fileSpec)) {
-                        emit(DownloadProgress.Error("Cannot finalize ${fileSpec.name}"))
-                        return@flow
-                    }
-                }
-
-                is AiAssetFileSource.TarGz -> {
-                    val extracted = extractTarGzEntry(
-                        archive = downloadFile,
-                        entryName = source.entryName,
-                        target = tmpFile,
+            } catch (error: IOException) {
+                lastError = DownloadProgress.Error(
+                    "${error.message ?: "Network error"} while downloading ${fileSpec.name}",
+                )
+                if (!attempt.hasAttemptsRemaining()) {
+                    emit(
+                        lastError ?: DownloadProgress.Error(
+                            "${error.message ?: "Network error"} while downloading ${fileSpec.name}",
+                        ),
                     )
-                    if (!extracted) {
-                        emit(DownloadProgress.Error("${source.entryName} was not found in archive"))
-                        return@flow
-                    }
-                    if (!downloadFile.delete()) {
-                        emit(DownloadProgress.Error("Cannot remove temporary archive for ${fileSpec.name}"))
-                        return@flow
-                    }
-                    if (!moveDownloadedFile(tmpFile, finalFile, fileSpec)) {
-                        emit(DownloadProgress.Error("Cannot finalize ${fileSpec.name}"))
-                        return@flow
-                    }
+                    return@flow
                 }
             }
-
-            emit(DownloadProgress.Completed(finalFile.absolutePath))
         }
+        emit(lastError ?: DownloadProgress.Error("Download failed for ${fileSpec.name}"))
     }.flowOn(Dispatchers.IO)
+
+    private fun Int.hasAttemptsRemaining(): Boolean =
+        this < maxAttempts - 1
 
     private fun moveDownloadedFile(
         source: File,
@@ -141,12 +188,16 @@ internal class AiAssetFileDownloader(
     }
 
     private companion object {
+        const val DEFAULT_MAX_ATTEMPTS = 3
+
         fun defaultClient(): OkHttpClient =
             OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
                 .followRedirects(true)
                 .build()
+
+        fun Int.isRetryableHttpStatus(): Boolean = this in 500..599
     }
 }
 
