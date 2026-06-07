@@ -9,7 +9,6 @@ import android.os.Build
 import android.os.IBinder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -22,7 +21,7 @@ import org.devil.hytranslator.platform.download.ModelDownloadStateStore
 class ModelDownloadService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var downloadJob: Job? = null
+    private val downloadJobs = DownloadJobRegistry<ModelOption>()
     private var currentModel: ModelOption? = null
     private var terminalStateReached = false
     private lateinit var notifier: ModelDownloadNotifier
@@ -68,18 +67,18 @@ class ModelDownloadService : Service() {
 
     override fun onDestroy() {
         interruptActiveDownload()
-        downloadJob?.cancel()
+        downloadJobs.cancelAll()
         serviceScope.cancel()
         super.onDestroy()
     }
 
     private fun startDownload(model: ModelOption) {
-        downloadJob?.cancel()
+        downloadJobs.cancelAll()
         currentModel = model
         terminalStateReached = false
 
         val initialNotification = notifier.progressNotification(model, downloaded = 0L, total = 0L)
-        downloadJob = downloadRuntime.start(
+        val job = downloadRuntime.start(
             target = model,
             initialNotification = initialNotification,
         ) {
@@ -87,12 +86,12 @@ class ModelDownloadService : Service() {
             repository.selectModel(model)
             repository.download()
         }
+        downloadJobs.put(model, job)
     }
 
     private fun cancelDownload() {
         terminalStateReached = true
-        downloadJob?.cancel()
-        downloadJob = null
+        downloadJobs.cancelAll()
         runBlocking(Dispatchers.IO) {
             stateStore.setIdle()
         }
@@ -104,15 +103,14 @@ class ModelDownloadService : Service() {
 
     private fun interruptActiveDownload() {
         val model = currentModel?.takeIf {
-            downloadJob?.isActive == true && !terminalStateReached
+            downloadJobs.isActive(it) && !terminalStateReached
         } ?: return
 
         terminalStateReached = true
         runBlocking(Dispatchers.IO) {
             stateStore.setError(model, DOWNLOAD_INTERRUPTED_MESSAGE)
         }
-        downloadJob?.cancel()
-        downloadJob = null
+        downloadJobs.cancelAll()
         currentModel = null
         notifier.cancel()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -155,6 +153,7 @@ class ModelDownloadService : Service() {
 
         override fun onCompleted(target: ModelOption) {
             terminalStateReached = true
+            downloadJobs.remove(target)
             notifier.showComplete(target)
             stopForeground(STOP_FOREGROUND_DETACH)
             stopSelf()
@@ -162,6 +161,7 @@ class ModelDownloadService : Service() {
 
         override fun onError(target: ModelOption, message: String) {
             terminalStateReached = true
+            downloadJobs.remove(target)
             notifier.showError(message, target)
             stopForeground(STOP_FOREGROUND_DETACH)
             stopSelf()

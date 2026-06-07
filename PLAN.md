@@ -113,7 +113,9 @@
   模型单任务和 AI asset 多任务的取消/并发策略仍保留在各自 service，下一步再继续收敛
   通知 renderer、job registry 和 UIDT scheduler。通知层已抽出 `DownloadNotificationSupport`
   复用通知权限判断、进度百分比/节流和 Android 16 ProgressStyle 构建；模型与 AI asset
-  notifier 仍保留各自文案、action、content intent 和资源上下文。
+  notifier 仍保留各自文案、action、content intent 和资源上下文。Job 管理已抽出
+  `DownloadJobRegistry`，复用按目标保存、移除、取消和活跃状态查询；模型 service 仍保持
+  单活跃模型下载策略，AI asset service 仍保持按资源并发下载策略。
 - AI 资源下载通知已拆成 ASR/OCR 独立 notification id，取消 action 也携带 asset id；
   AI 资源下载状态已按 asset 独立持久化，ViewModel 也按 ASR/OCR 分别观察状态。
   `AiAssetDownloadService` 已按 asset 管理下载 job，支持 ASR/OCR 并发下载和分别取消。
@@ -358,6 +360,7 @@ DI 默认决策：
   - App 启动时从持久化状态恢复 UI，不依赖 service 静态内存状态。
   - 已抽出 `DownloadForegroundRuntime` 复用前台执行和 progress 终态处理；后续继续把
     job registry、通知渲染和 UIDT/FGS 调度层纳入统一 runtime。
+  - 已抽出 `DownloadJobRegistry` 复用 service 内部 job 保存、取消和 active 查询。
 - 通知和 UI 双向绑定：
   - 通知取消必须取消真实下载任务，并把 UI 状态更新为取消/可重试。
   - UI 取消必须撤销 foreground notification。

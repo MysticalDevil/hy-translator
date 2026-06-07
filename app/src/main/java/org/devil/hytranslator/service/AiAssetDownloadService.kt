@@ -9,7 +9,6 @@ import android.os.Build
 import android.os.IBinder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -20,7 +19,7 @@ import org.devil.hytranslator.platform.download.AiAssetDownloadStateStore
 
 class AiAssetDownloadService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val downloadJobs = mutableMapOf<AiAsset, Job>()
+    private val downloadJobs = DownloadJobRegistry<AiAsset>()
     private lateinit var notifier: AiAssetDownloadNotifier
     private lateinit var stateStore: AiAssetDownloadStateStore
     private lateinit var downloadRuntime: DownloadForegroundRuntime<AiAsset>
@@ -71,9 +70,7 @@ class AiAssetDownloadService : Service() {
     }
 
     private fun startDownload(asset: AiAsset) {
-        synchronized(downloadJobs) {
-            downloadJobs.remove(asset)?.cancel()
-        }
+        downloadJobs.cancel(asset)
 
         val job = downloadRuntime.start(
             target = asset,
@@ -82,23 +79,16 @@ class AiAssetDownloadService : Service() {
             val repository = DownloadServiceDependencies.aiAssetRepositoryFactory(applicationContext)
             repository.download(asset)
         }
-        synchronized(downloadJobs) {
-            downloadJobs[asset] = job
-        }
+        downloadJobs.put(asset, job)
     }
 
     private fun cancelDownload(asset: AiAsset? = null) {
-        val cancelledAssets = synchronized(downloadJobs) {
+        val cancelledAssets =
             if (asset != null) {
-                downloadJobs.remove(asset)?.cancel()
-                listOf(asset)
+                downloadJobs.cancel(asset)
             } else {
-                val assets = downloadJobs.keys.toList()
-                downloadJobs.values.forEach { it.cancel() }
-                downloadJobs.clear()
-                assets
+                downloadJobs.cancelAll()
             }
-        }
         runBlocking(Dispatchers.IO) {
             if (asset != null) {
                 stateStore.setIdle(asset)
@@ -114,12 +104,7 @@ class AiAssetDownloadService : Service() {
     }
 
     private fun interruptActiveDownloads() {
-        val activeAssets = synchronized(downloadJobs) {
-            val assets = downloadJobs.filterValues { it.isActive }.keys.toList()
-            downloadJobs.values.forEach { it.cancel() }
-            downloadJobs.clear()
-            assets
-        }
+        val activeAssets = downloadJobs.cancelActiveAndClear()
         if (activeAssets.isEmpty()) return
 
         runBlocking(Dispatchers.IO) {
@@ -133,9 +118,7 @@ class AiAssetDownloadService : Service() {
     }
 
     private fun finishDownload(asset: AiAsset) {
-        synchronized(downloadJobs) {
-            downloadJobs.remove(asset)
-        }
+        downloadJobs.remove(asset)
         if (!hasActiveDownloads()) {
             stopForeground(STOP_FOREGROUND_DETACH)
             stopSelf()
@@ -143,9 +126,7 @@ class AiAssetDownloadService : Service() {
     }
 
     private fun hasActiveDownloads(): Boolean =
-        synchronized(downloadJobs) {
-            downloadJobs.values.any { it.isActive }
-        }
+        downloadJobs.hasActive()
 
     private fun foregroundServiceType(): Int =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
