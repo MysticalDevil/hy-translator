@@ -167,6 +167,52 @@ class PaddleLiteOcrTextRepositoryTest {
         assertEquals(normalize(255, mean = 0.485f, std = 0.229f), input.data[planeSize * 2], 0.0001f)
     }
 
+    @Test
+    fun detectionPostprocessor_extractsConnectedTextBoxesInSourceCoordinates() {
+        val output = FloatArray(8 * 6)
+        fillRect(output, width = 8, left = 1, top = 1, right = 4, bottom = 3, value = 0.9f)
+        fillRect(output, width = 8, left = 5, top = 4, right = 7, bottom = 6, value = 0.8f)
+
+        val boxes = PaddleOcrDetectionPostprocessor.detectTextBoxes(
+            probabilities = output,
+            shape = longArrayOf(1, 1, 6, 8),
+            resize = PaddleOcrDetectionResize(
+                width = 8,
+                height = 6,
+                ratioWidth = 0.5f,
+                ratioHeight = 0.25f,
+            ),
+            minArea = 4,
+        )
+
+        assertEquals(2, boxes.size)
+        assertTextBox(left = 2, top = 4, right = 8, bottom = 12, score = 0.9f, actual = boxes[0])
+        assertTextBox(left = 10, top = 16, right = 14, bottom = 24, score = 0.8f, actual = boxes[1])
+    }
+
+    @Test
+    fun detectionPostprocessor_filtersSmallComponentsAndSortsForReading() {
+        val output = FloatArray(10 * 10)
+        fillRect(output, width = 10, left = 7, top = 1, right = 9, bottom = 4, value = 0.8f)
+        fillRect(output, width = 10, left = 1, top = 1, right = 3, bottom = 4, value = 0.9f)
+        output[9 * 10 + 9] = 0.95f
+
+        val boxes = PaddleOcrDetectionPostprocessor.detectTextBoxes(
+            probabilities = output,
+            shape = longArrayOf(1, 1, 10, 10),
+            resize = PaddleOcrDetectionResize(
+                width = 10,
+                height = 10,
+                ratioWidth = 1f,
+                ratioHeight = 1f,
+            ),
+            minArea = 4,
+        )
+
+        assertEquals(2, boxes.size)
+        assertEquals(listOf(1, 7), PaddleOcrDetectionPostprocessor.sortForReading(boxes).map { it.left })
+    }
+
     private fun createOcrFiles(labels: String) {
         val dir = File(temporaryFolder.root, "ai-assets/pp-ocrv5-mobile")
         check(dir.mkdirs())
@@ -189,5 +235,36 @@ class PaddleLiteOcrTextRepositoryTest {
 
         fun rgb(red: Int, green: Int, blue: Int): Int =
             (0xFF shl 24) or (red shl 16) or (green shl 8) or blue
+
+        fun fillRect(
+            output: FloatArray,
+            width: Int,
+            left: Int,
+            top: Int,
+            right: Int,
+            bottom: Int,
+            value: Float,
+        ) {
+            for (y in top until bottom) {
+                for (x in left until right) {
+                    output[y * width + x] = value
+                }
+            }
+        }
+
+        fun assertTextBox(
+            left: Int,
+            top: Int,
+            right: Int,
+            bottom: Int,
+            score: Float,
+            actual: PaddleOcrTextBox,
+        ) {
+            assertEquals(left, actual.left)
+            assertEquals(top, actual.top)
+            assertEquals(right, actual.right)
+            assertEquals(bottom, actual.bottom)
+            assertEquals(score, actual.score, 0.0001f)
+        }
     }
 }

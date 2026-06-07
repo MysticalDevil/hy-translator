@@ -136,8 +136,10 @@
 - PaddleOCR adapter 已完成 runtime 初始化、模型文件校验、label 文件校验、det/rec
   predictor 创建和 EXIF 旋转沿用。当前已接入 rec predictor 的整图单行识别路径：
   bitmap resize/normalize、Tensor 输入、`predictor.run()` 和 CTC decode 已有单测覆盖。
-- det resize/stride 对齐计划已补纯 JVM 测试；仍缺 det bitmap 像素归一化、det 后处理、
-  rec crop/resize 多框循环、文本框排序、typed error 收敛、instrumented OCR smoke 测试和真机验证。
+- det resize/stride 对齐、BGR NCHW 归一化、概率图连通域后处理、文本框排序和
+  axis-aligned crop + rec 多框循环已接入，并有纯 JVM 单测覆盖。后续仍缺 DB polygon
+  unclip/rotated crop、更精确文本框排序、typed error 收敛、完整 det + rec instrumented
+  OCR smoke 测试和真机验证。
 - 已新增标准图片 smoke 入口：`scripts/download-ocr-smoke-images.sh` 下载 PaddleOCR/PaddleX
   demo 图片，`PaddleLiteOcrSmokeTest` 可在设备已有 OCR 模型资源时把标准图片喂给
   Paddle Lite PP-OCRv5 mobile recognition runtime 做真机 smoke。大规模标准回归数据源
@@ -367,7 +369,7 @@ DI 默认决策：
   - PaddleOCR 初始化失败、模型缺失、识别失败要进入 typed error 和 UI 重试路径。
   - 已新增单行 recognition smoke harness：设备上 OCR 模型存在时，instrumented test 会下载
     PaddleOCR 标准 demo 图片并验证输出非空；模型未下载时该测试 skip。完整 det + rec
-    端到端 smoke 仍随 det 后处理一起补。
+    端到端 smoke 仍需在 OCR 模型资源下载到设备后验证。
 - 权限状态集中建模，UI 只显示当前状态和触发请求事件。
 - 相册和相机错误使用 typed error，避免在 UI 层拼接平台异常。
 

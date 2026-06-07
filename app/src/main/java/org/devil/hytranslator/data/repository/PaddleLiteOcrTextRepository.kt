@@ -13,7 +13,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.devil.hytranslator.platform.ocr.OcrTextRepository
 import java.io.File
+import java.util.ArrayDeque
 import kotlin.math.ceil
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 class PaddleLiteOcrTextRepository(
@@ -25,7 +28,7 @@ class PaddleLiteOcrTextRepository(
     override suspend fun recognize(bitmap: Bitmap): String {
         val activeSession = session ?: runtime.createSession().also { session = it }
         return withContext(Dispatchers.Default) {
-            activeSession.recognizeSingleLine(bitmap)
+            activeSession.recognize(bitmap)
         }
     }
 
@@ -133,6 +136,34 @@ class PaddleLiteOcrSession(
 
     fun recognizeSingleLine(bitmap: Bitmap): String {
         ensureReady()
+        return recognizeBitmapLine(bitmap)
+    }
+
+    fun recognize(bitmap: Bitmap): String {
+        ensureReady()
+        val input = PaddleOcrDetectionPreprocessor.createInput(bitmap)
+        detPredictor.setInput(input.shape, input.data)
+        check(detPredictor.run()) {
+            "PaddleOCR detection predictor failed"
+        }
+
+        val boxes = PaddleOcrDetectionPostprocessor.detectTextBoxes(
+            probabilities = detPredictor.outputFloatData(),
+            shape = detPredictor.outputShape(),
+            resize = input.resize,
+        )
+        if (boxes.isEmpty()) return ""
+
+        return PaddleOcrDetectionPostprocessor.sortForReading(boxes)
+            .mapNotNull { box ->
+                val crop = bitmap.crop(box)
+                val text = recognizeBitmapLine(crop)
+                text.takeIf { it.isNotBlank() }
+            }
+            .joinToString(separator = "\n")
+    }
+
+    private fun recognizeBitmapLine(bitmap: Bitmap): String {
         val input = PaddleOcrRecognitionPreprocessor.createInput(bitmap)
         recPredictor.setInput(input.shape, input.data)
         check(recPredictor.run()) {
@@ -144,6 +175,14 @@ class PaddleLiteOcrSession(
             dictionary = characterDictionary,
         )
         return decoded.text
+    }
+
+    private fun Bitmap.crop(box: PaddleOcrTextBox): Bitmap {
+        val left = box.left.coerceIn(0, width - 1)
+        val top = box.top.coerceIn(0, height - 1)
+        val right = box.right.coerceIn(left + 1, width)
+        val bottom = box.bottom.coerceIn(top + 1, height)
+        return Bitmap.createBitmap(this, left, top, right - left, bottom - top)
     }
 }
 
@@ -342,6 +381,143 @@ object PaddleOcrDetectionPreprocessor {
     private const val DET_STD_BLUE = 0.225f
     private const val DET_STD_GREEN = 0.224f
     private const val DET_STD_RED = 0.229f
+}
+
+data class PaddleOcrTextBox(
+    val left: Int,
+    val top: Int,
+    val right: Int,
+    val bottom: Int,
+    val score: Float,
+) {
+    val width: Int get() = right - left
+    val height: Int get() = bottom - top
+    val area: Int get() = width * height
+}
+
+object PaddleOcrDetectionPostprocessor {
+    fun detectTextBoxes(
+        probabilities: FloatArray,
+        shape: LongArray,
+        resize: PaddleOcrDetectionResize,
+        threshold: Float = DEFAULT_THRESHOLD,
+        minArea: Int = DEFAULT_MIN_AREA,
+    ): List<PaddleOcrTextBox> {
+        require(shape.size >= 4) {
+            "PaddleOCR detection output shape must have at least 4 dimensions"
+        }
+        val height = shape[shape.size - 2].toInt()
+        val width = shape[shape.size - 1].toInt()
+        require(width > 0 && height > 0) {
+            "PaddleOCR detection output shape is empty"
+        }
+        require(probabilities.size >= width * height) {
+            "PaddleOCR detection output data is shorter than its shape"
+        }
+        require(threshold in 0f..1f) {
+            "PaddleOCR detection threshold must be between 0 and 1"
+        }
+
+        val visited = BooleanArray(width * height)
+        val boxes = mutableListOf<PaddleOcrTextBox>()
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val index = y * width + x
+                if (visited[index] || probabilities[index] < threshold) continue
+                val component = floodFill(
+                    probabilities = probabilities,
+                    visited = visited,
+                    width = width,
+                    height = height,
+                    startX = x,
+                    startY = y,
+                    threshold = threshold,
+                )
+                val box = component.toSourceBox(resize)
+                if (box.area >= minArea) {
+                    boxes += box
+                }
+            }
+        }
+        return boxes
+    }
+
+    fun sortForReading(boxes: List<PaddleOcrTextBox>): List<PaddleOcrTextBox> =
+        boxes.sortedWith(
+            compareBy<PaddleOcrTextBox> { box -> box.top }
+                .thenBy { box -> box.left },
+        )
+
+    private fun floodFill(
+        probabilities: FloatArray,
+        visited: BooleanArray,
+        width: Int,
+        height: Int,
+        startX: Int,
+        startY: Int,
+        threshold: Float,
+    ): DetectionComponent {
+        val queue = ArrayDeque<Int>()
+        queue.add(startY * width + startX)
+
+        var left = startX
+        var top = startY
+        var right = startX
+        var bottom = startY
+        var score = 0f
+        var count = 0
+
+        while (queue.isNotEmpty()) {
+            val encoded = queue.removeFirst()
+            val x = encoded % width
+            val y = encoded / width
+
+            if (x !in 0 until width || y !in 0 until height) continue
+            val index = y * width + x
+            if (visited[index] || probabilities[index] < threshold) continue
+            visited[index] = true
+
+            left = min(left, x)
+            top = min(top, y)
+            right = max(right, x)
+            bottom = max(bottom, y)
+            score += probabilities[index]
+            count += 1
+
+            if (x > 0) queue.add(y * width + x - 1)
+            if (x < width - 1) queue.add(y * width + x + 1)
+            if (y > 0) queue.add((y - 1) * width + x)
+            if (y < height - 1) queue.add((y + 1) * width + x)
+        }
+
+        return DetectionComponent(
+            left = left,
+            top = top,
+            right = right + 1,
+            bottom = bottom + 1,
+            score = if (count == 0) 0f else score / count,
+        )
+    }
+
+    private data class DetectionComponent(
+        val left: Int,
+        val top: Int,
+        val right: Int,
+        val bottom: Int,
+        val score: Float,
+    ) {
+        fun toSourceBox(resize: PaddleOcrDetectionResize): PaddleOcrTextBox =
+            PaddleOcrTextBox(
+                left = (left / resize.ratioWidth).roundToInt(),
+                top = (top / resize.ratioHeight).roundToInt(),
+                right = (right / resize.ratioWidth).roundToInt(),
+                bottom = (bottom / resize.ratioHeight).roundToInt(),
+                score = score,
+            )
+    }
+
+    private const val DEFAULT_THRESHOLD = 0.3f
+    private const val DEFAULT_MIN_AREA = 16
 }
 
 object PaddleOcrCtcDecoder {
