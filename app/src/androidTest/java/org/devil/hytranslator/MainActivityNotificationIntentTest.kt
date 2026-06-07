@@ -51,6 +51,43 @@ class MainActivityNotificationIntentTest {
         }
     }
 
+    @Test
+    fun notificationIntent_reusedActivityHighlightsTargetAiAsset() {
+        launchMainActivity(Intent()).use { scenario ->
+            scenario.sendNotificationIntentToTop(
+                Intent().apply {
+                    putExtra(
+                        NotificationNavigation.EXTRA_TARGET,
+                        NotificationNavigation.TARGET_AI_ASSET_DOWNLOAD,
+                    )
+                    putExtra(NotificationNavigation.EXTRA_AI_ASSET, AiAsset.OcrPpOcrV5Mobile.name)
+                },
+            )
+
+            composeRule.onNodeWithTag(TranslatorTestTags.OcrAssetHighlighted)
+                .assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun notificationIntent_reusedActivityOpensModelPicker() {
+        launchMainActivity(Intent()).use { scenario ->
+            scenario.sendNotificationIntentToTop(
+                Intent().apply {
+                    putExtra(
+                        NotificationNavigation.EXTRA_TARGET,
+                        NotificationNavigation.TARGET_MODEL_DOWNLOAD,
+                    )
+                    putExtra(NotificationNavigation.EXTRA_MODEL_KEY, "Q4_K_M")
+                },
+            )
+
+            composeRule.onNodeWithText(
+                context.getString(R.string.model_select_title),
+            ).assertIsDisplayed()
+        }
+    }
+
     private fun launchMainActivity(intent: Intent): ActivityScenario<MainActivity> =
         ActivityScenario.launch(
             intent.setClassName(
@@ -58,4 +95,14 @@ class MainActivityNotificationIntentTest {
                 MainActivity::class.java.name,
             ),
         )
+
+    private fun ActivityScenario<MainActivity>.sendNotificationIntentToTop(intent: Intent) {
+        onActivity { activity ->
+            activity.startActivity(
+                intent.setClassName(context.packageName, MainActivity::class.java.name)
+                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            )
+        }
+        composeRule.waitForIdle()
+    }
 }
