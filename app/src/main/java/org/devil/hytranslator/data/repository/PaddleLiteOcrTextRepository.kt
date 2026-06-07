@@ -232,7 +232,70 @@ data class PaddleOcrDetectionResize(
     val ratioHeight: Float,
 )
 
+data class PaddleOcrDetectionInput(
+    val shape: LongArray,
+    val data: FloatArray,
+    val resize: PaddleOcrDetectionResize,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is PaddleOcrDetectionInput) return false
+        return shape.contentEquals(other.shape) &&
+            data.contentEquals(other.data) &&
+            resize == other.resize
+    }
+
+    override fun hashCode(): Int {
+        var result = shape.contentHashCode()
+        result = 31 * result + data.contentHashCode()
+        result = 31 * result + resize.hashCode()
+        return result
+    }
+}
+
 object PaddleOcrDetectionPreprocessor {
+    fun createInput(
+        bitmap: Bitmap,
+        maxSideLength: Int = DEFAULT_MAX_SIDE_LENGTH,
+    ): PaddleOcrDetectionInput {
+        val resize = resizePlan(
+            sourceWidth = bitmap.width,
+            sourceHeight = bitmap.height,
+            maxSideLength = maxSideLength,
+        )
+        val resizedBitmap = Bitmap.createScaledBitmap(bitmap, resize.width, resize.height, true)
+        val pixels = IntArray(resize.width * resize.height)
+        resizedBitmap.getPixels(pixels, 0, resize.width, 0, 0, resize.width, resize.height)
+        return createInputFromPixels(resize, pixels)
+    }
+
+    fun createInputFromPixels(
+        resize: PaddleOcrDetectionResize,
+        pixels: IntArray,
+    ): PaddleOcrDetectionInput {
+        require(pixels.size >= resize.width * resize.height) {
+            "PaddleOCR detection pixel buffer is shorter than resize shape"
+        }
+
+        val planeSize = resize.width * resize.height
+        val data = FloatArray(3 * planeSize)
+        for (index in 0 until planeSize) {
+            val pixel = pixels[index]
+            val red = (pixel shr 16) and 0xFF
+            val green = (pixel shr 8) and 0xFF
+            val blue = pixel and 0xFF
+            data[index] = normalize(blue, DET_MEAN_BLUE, DET_STD_BLUE)
+            data[planeSize + index] = normalize(green, DET_MEAN_GREEN, DET_STD_GREEN)
+            data[planeSize * 2 + index] = normalize(red, DET_MEAN_RED, DET_STD_RED)
+        }
+
+        return PaddleOcrDetectionInput(
+            shape = longArrayOf(1, 3, resize.height.toLong(), resize.width.toLong()),
+            data = data,
+            resize = resize,
+        )
+    }
+
     fun resizePlan(
         sourceWidth: Int,
         sourceHeight: Int,
@@ -268,8 +331,17 @@ object PaddleOcrDetectionPreprocessor {
             .let { aligned -> ((aligned + MODEL_STRIDE / 2) / MODEL_STRIDE) * MODEL_STRIDE }
             .coerceAtLeast(MODEL_STRIDE)
 
+    private fun normalize(channel: Int, mean: Float, std: Float): Float =
+        (channel / 255f - mean) / std
+
     private const val DEFAULT_MAX_SIDE_LENGTH = 960
     private const val MODEL_STRIDE = 32
+    private const val DET_MEAN_BLUE = 0.406f
+    private const val DET_MEAN_GREEN = 0.456f
+    private const val DET_MEAN_RED = 0.485f
+    private const val DET_STD_BLUE = 0.225f
+    private const val DET_STD_GREEN = 0.224f
+    private const val DET_STD_RED = 0.229f
 }
 
 object PaddleOcrCtcDecoder {

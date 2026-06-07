@@ -142,6 +142,31 @@ class PaddleLiteOcrTextRepositoryTest {
         assertEquals("PaddleOCR detection input bitmap is empty", error.message)
     }
 
+    @Test
+    fun detectionCreateInputFromPixels_returnsNchwBgrNormalizedTensor() {
+        val resize = PaddleOcrDetectionResize(
+            width = 2,
+            height = 1,
+            ratioWidth = 1f,
+            ratioHeight = 1f,
+        )
+        val input = PaddleOcrDetectionPreprocessor.createInputFromPixels(
+            resize = resize,
+            pixels = intArrayOf(
+                rgb(255, 128, 0),
+                rgb(0, 64, 255),
+            ),
+        )
+
+        assertEquals(listOf(1L, 3L, 1L, 2L), input.shape.toList())
+        assertEquals(resize, input.resize)
+
+        val planeSize = input.resize.width * input.resize.height
+        assertEquals(normalize(0, mean = 0.406f, std = 0.225f), input.data[0], 0.0001f)
+        assertEquals(normalize(128, mean = 0.456f, std = 0.224f), input.data[planeSize], 0.0001f)
+        assertEquals(normalize(255, mean = 0.485f, std = 0.229f), input.data[planeSize * 2], 0.0001f)
+    }
+
     private fun createOcrFiles(labels: String) {
         val dir = File(temporaryFolder.root, "ai-assets/pp-ocrv5-mobile")
         check(dir.mkdirs())
@@ -156,5 +181,13 @@ class PaddleLiteOcrTextRepositoryTest {
         override fun run(): Boolean = true
         override fun outputShape(): LongArray = longArrayOf(1, 1, 1)
         override fun outputFloatData(): FloatArray = floatArrayOf(1f)
+    }
+
+    private companion object {
+        fun normalize(channel: Int, mean: Float, std: Float): Float =
+            (channel / 255f - mean) / std
+
+        fun rgb(red: Int, green: Int, blue: Int): Int =
+            (0xFF shl 24) or (red shl 16) or (green shl 8) or blue
     }
 }
