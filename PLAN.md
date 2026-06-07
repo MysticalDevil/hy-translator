@@ -365,6 +365,11 @@ DI 默认决策：
 - 评估并落地 Google 推荐的用户发起数据传输方案：
   - Android 14+ 优先考虑 User-Initiated Data Transfer job。
   - 需要即时前台可见和兼容旧系统时保留 Foreground Service fallback。
+  - 已按 Android 官方文档复核：用户点击下载模型/ASR/OCR 资源、需要长时间进度通知、
+    中断会损害体验，符合 UIDT 适用条件；UIDT 需要 API 34+ `JobService`、
+    `RUN_USER_INITIATED_JOBS`、`setUserInitiated(true)`、`setNotification(...)` 和
+    `jobFinished(...)`，且当前没有 Jetpack 兼容库。迁移顺序应先抽统一 download runtime，
+    再添加 API 34+ UIDT scheduler，Android 13 及以下继续使用当前 dataSync FGS fallback。
 - 下载状态模型已从 Service 内部类型迁到 domain 层，并已移除 service 静态状态流；
   当前通过 DataStore 持久化基础下载状态，service 异常销毁会记录 interrupted error；
   App 初始化会把上次进程直接结束后残留的 downloading 记录审计为 interrupted error；
