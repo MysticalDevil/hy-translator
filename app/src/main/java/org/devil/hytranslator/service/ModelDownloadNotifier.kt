@@ -1,19 +1,16 @@
 package org.devil.hytranslator.service
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.SystemClock
 import androidx.annotation.RequiresApi
-import androidx.core.content.ContextCompat
 import org.devil.hytranslator.R
 import org.devil.hytranslator.domain.model.DownloadProgress
 import org.devil.hytranslator.domain.model.ModelOption
@@ -24,8 +21,7 @@ class ModelDownloadNotifier(
 ) : ModelDownloadNotifications {
     private val notificationManager =
         context.getSystemService(NotificationManager::class.java)
-    private var lastProgressPercent = -1
-    private var lastProgressUpdateMillis = 0L
+    private val progressThrottle = DownloadProgressThrottle()
     private var lastRateSampleBytes = 0L
     private var lastRateSampleMillis = 0L
     private var smoothedBytesPerSecond: Double? = null
@@ -115,10 +111,10 @@ class ModelDownloadNotifier(
     }
 
     fun shouldPublishProgress(downloaded: Long, total: Long): Boolean =
-        !shouldSkipProgressUpdate(percent(downloaded, total))
+        progressThrottle.shouldPublish(downloaded, total)
 
     fun progressNotification(model: ModelOption, downloaded: Long, total: Long): Notification {
-        val percent = percent(downloaded, total)
+        val percent = downloadPercent(downloaded, total)
         val bytesPerSecond = updateTransferRate(downloaded)
 
         val builder = baseBuilder(model)
@@ -137,7 +133,7 @@ class ModelDownloadNotifier(
             .addAction(cancelAction())
 
         if (total > 0) {
-            builder.setProgress(PROGRESS_MAX, percent, false)
+            builder.setProgress(DOWNLOAD_PROGRESS_MAX, percent, false)
         } else {
             builder.setProgress(0, 0, true)
         }
@@ -192,20 +188,8 @@ class ModelDownloadNotifier(
         return builder.build()
     }
 
-    private fun shouldSkipProgressUpdate(percent: Int): Boolean {
-        val now = SystemClock.elapsedRealtime()
-        val isSamePercent = percent == lastProgressPercent
-        val isTooSoon = now - lastProgressUpdateMillis < MIN_PROGRESS_UPDATE_INTERVAL_MS
-        if (isSamePercent && isTooSoon) return true
-
-        lastProgressPercent = percent
-        lastProgressUpdateMillis = now
-        return false
-    }
-
     private fun resetProgressThrottle() {
-        lastProgressPercent = -1
-        lastProgressUpdateMillis = 0L
+        progressThrottle.reset()
         lastRateSampleBytes = 0L
         lastRateSampleMillis = 0L
         smoothedBytesPerSecond = null
@@ -225,33 +209,20 @@ class ModelDownloadNotifier(
 
     @RequiresApi(Build.VERSION_CODES.BAKLAVA)
     private fun progressStyle(percent: Int): Notification.ProgressStyle {
-        val progressUnits = percent.coerceIn(0, PROGRESS_MAX)
-        return Notification.ProgressStyle()
-            .setStyledByProgress(true)
-            .setProgress(progressUnits)
-            .setProgressTrackerIcon(
-                Icon.createWithResource(context, R.drawable.ic_download_tracker),
-            )
-            .setProgressSegments(
-                listOf(
-                    Notification.ProgressStyle.Segment(25)
-                        .setColor(Color.rgb(77, 171, 247)),
-                    Notification.ProgressStyle.Segment(50)
-                        .setColor(Color.rgb(32, 201, 151)),
-                    Notification.ProgressStyle.Segment(25)
-                        .setColor(Color.rgb(255, 212, 59)),
-                ),
-            )
-            .setProgressPoints(
-                listOf(
-                    Notification.ProgressStyle.Point(25)
-                        .setColor(Color.WHITE),
-                    Notification.ProgressStyle.Point(50)
-                        .setColor(Color.WHITE),
-                    Notification.ProgressStyle.Point(75)
-                        .setColor(Color.WHITE),
-                ),
-            )
+        return downloadProgressStyle(
+            context = context,
+            percent = percent,
+            segments = listOf(
+                DownloadProgressSegment(25, Color.rgb(77, 171, 247)),
+                DownloadProgressSegment(50, Color.rgb(32, 201, 151)),
+                DownloadProgressSegment(25, Color.rgb(255, 212, 59)),
+            ),
+            points = listOf(
+                DownloadProgressPoint(25, Color.WHITE),
+                DownloadProgressPoint(50, Color.WHITE),
+                DownloadProgressPoint(75, Color.WHITE),
+            ),
+        )
     }
 
     private fun cancelAction(): Notification.Action =
@@ -287,12 +258,7 @@ class ModelDownloadNotifier(
         )
 
     private fun canPostNotifications(): Boolean {
-        if (!notificationManager.areNotificationsEnabled()) return false
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
-        return ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.POST_NOTIFICATIONS,
-        ) == PackageManager.PERMISSION_GRANTED
+        return canPostDownloadNotifications(context, notificationManager)
     }
 
     private fun progressText(model: ModelOption, downloaded: Long, total: Long): String {
@@ -364,23 +330,14 @@ class ModelDownloadNotifier(
         }
     }
 
-    private fun percent(downloaded: Long, total: Long): Int {
-        if (total <= 0L) return 0
-        return ((downloaded.toDouble() / total.toDouble()) * PROGRESS_MAX)
-            .roundToInt()
-            .coerceIn(0, PROGRESS_MAX)
-    }
-
     companion object {
         const val CHANNEL_ID = "model_downloads"
         const val NOTIFICATION_ID = 1001
-        private const val PROGRESS_MAX = 100
         private const val CANCEL_REQUEST_CODE = 1002
         private const val RETRY_REQUEST_CODE = 1005
         const val BYTES_PER_MB = 1024.0 * 1024.0
         private const val BYTES_PER_KB = 1024.0
         private const val RATE_SMOOTHING_WEIGHT = 0.7
-        private const val MIN_PROGRESS_UPDATE_INTERVAL_MS = 1_000L
         private val NOTIFICATION_COLOR = Color.rgb(32, 201, 151)
     }
 }

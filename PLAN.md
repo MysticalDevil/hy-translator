@@ -111,7 +111,9 @@
   当前已抽出第一层 `DownloadForegroundRuntime`，复用启动前台通知、收集
   `DownloadProgress`、写入 Downloading/Completed/Error 状态、发布进度通知和处理异常终态；
   模型单任务和 AI asset 多任务的取消/并发策略仍保留在各自 service，下一步再继续收敛
-  通知 renderer、job registry 和 UIDT scheduler。
+  通知 renderer、job registry 和 UIDT scheduler。通知层已抽出 `DownloadNotificationSupport`
+  复用通知权限判断、进度百分比/节流和 Android 16 ProgressStyle 构建；模型与 AI asset
+  notifier 仍保留各自文案、action、content intent 和资源上下文。
 - AI 资源下载通知已拆成 ASR/OCR 独立 notification id，取消 action 也携带 asset id；
   AI 资源下载状态已按 asset 独立持久化，ViewModel 也按 ASR/OCR 分别观察状态。
   `AiAssetDownloadService` 已按 asset 管理下载 job，支持 ASR/OCR 并发下载和分别取消。
@@ -387,6 +389,8 @@ DI 默认决策：
   - 旧系统使用标准 determinate progress notification。
   - 小图标统一使用符合 Android 通知规范的单色 drawable。
   - AI 资源通知使用按资源稳定分配的 notification id，避免 ASR/OCR 状态互相覆盖。
+  - 已抽出共享通知 support，统一 `POST_NOTIFICATIONS` gate、进度节流和
+    `Notification.ProgressStyle` segment/point 构建；后续继续收敛通知 action renderer。
 - 明确用户划掉任务后的策略：
   - 如果移除 recent task，当前策略是取消活跃下载、持久化 interrupted error、撤销前台通知，
     下次打开 App 时通过持久化状态显示可重试错误。
