@@ -22,6 +22,7 @@ class AiAssetRepositoryImpl(
     private val ocrState = MutableStateFlow<AiAssetState>(AiAssetState.NotDownloaded)
     private val specs = AiAssetSpecs.defaultSpecs
     private val fileDownloader = AiAssetFileDownloader()
+    private val bundledAiAssetInstaller = BundledAiAssetInstaller(context)
 
     override fun state(asset: AiAsset): StateFlow<AiAssetState> =
         mutableState(asset)
@@ -35,6 +36,13 @@ class AiAssetRepositoryImpl(
     }
 
     override fun download(asset: AiAsset): Flow<DownloadProgress> = flow {
+        bundledAiAssetInstaller.installIfPresent(asset)
+        if (hasRequiredFiles(asset)) {
+            refresh(asset)
+            emit(DownloadProgress.Completed(localPath(asset)))
+            return@flow
+        }
+
         val spec = specs.getValue(asset)
         val totalBytes = spec.files.sumOf { it.expectedBytes }
         var completedBytes = completedBytes(asset)
