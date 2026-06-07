@@ -423,6 +423,85 @@ class TranslatorViewModelTest {
     }
 
     @Test
+    fun initialize_whenDownloadCompleted_loadsModelAndShowsCompleteNotification() = runTest {
+        val translatorRepository = FakeTranslatorRepository(isReady = false)
+        val modelRepository = FakeModelRepository()
+        val downloadActions = FakeModelDownloadActions()
+        val notifications = FakeModelDownloadNotifications()
+        val viewModel = createViewModel(
+            translatorRepository = translatorRepository,
+            modelRepository = modelRepository,
+            downloadActions = downloadActions,
+            notifications = notifications,
+        )
+
+        viewModel.initialize()
+        advanceUntilIdle()
+        downloadActions.mutableState.value = ModelDownloadState.Completed(
+            model = modelRepository.currentModel,
+            path = modelRepository.getModelPath(),
+        )
+        advanceUntilIdle()
+
+        assertSame(ModelStatus.Ready, viewModel.uiState.value.modelStatus)
+        assertEquals(modelRepository.getModelPath(), translatorRepository.loadedPath)
+        assertEquals(1, translatorRepository.loadCalls)
+        assertTrue(notifications.completed)
+        assertEquals(null, viewModel.uiState.value.downloadProgress)
+    }
+
+    @Test
+    fun initialize_whenSameDownloadCompletionRepeats_doesNotLoadModelTwice() = runTest {
+        val translatorRepository = FakeTranslatorRepository(isReady = false)
+        val modelRepository = FakeModelRepository()
+        val downloadActions = FakeModelDownloadActions()
+        val notifications = FakeModelDownloadNotifications()
+        val viewModel = createViewModel(
+            translatorRepository = translatorRepository,
+            modelRepository = modelRepository,
+            downloadActions = downloadActions,
+            notifications = notifications,
+        )
+        val completed = ModelDownloadState.Completed(
+            model = modelRepository.currentModel,
+            path = modelRepository.getModelPath(),
+        )
+
+        viewModel.initialize()
+        advanceUntilIdle()
+        downloadActions.mutableState.value = completed
+        advanceUntilIdle()
+        downloadActions.mutableState.value = ModelDownloadState.Idle
+        advanceUntilIdle()
+        downloadActions.mutableState.value = completed
+        advanceUntilIdle()
+
+        assertSame(ModelStatus.Ready, viewModel.uiState.value.modelStatus)
+        assertEquals(1, translatorRepository.loadCalls)
+        assertTrue(notifications.completed)
+    }
+
+    @Test
+    fun initialize_whenDownloadErrorArrives_showsModelError() = runTest {
+        val downloadActions = FakeModelDownloadActions()
+        val modelRepository = FakeModelRepository()
+        val viewModel = createViewModel(
+            modelRepository = modelRepository,
+            downloadActions = downloadActions,
+        )
+
+        viewModel.initialize()
+        advanceUntilIdle()
+        downloadActions.mutableState.value = ModelDownloadState.Error(
+            model = modelRepository.currentModel,
+            message = "network failed",
+        )
+        advanceUntilIdle()
+
+        assertEquals(ModelStatus.Error("network failed"), viewModel.uiState.value.modelStatus)
+    }
+
+    @Test
     fun selectModel_cancelsDownloadAndStoresSelection() = runTest {
         val downloadActions = FakeModelDownloadActions()
         val modelRepository = FakeModelRepository()
@@ -541,10 +620,16 @@ class TranslatorViewModelTest {
             private set
         var lastText: String? = null
             private set
+        var loadCalls = 0
+            private set
+        var loadedPath: String? = null
+            private set
 
         override fun isModelReady(): Boolean = isReady
 
         override suspend fun loadModel(path: String) {
+            loadCalls += 1
+            loadedPath = path
             isReady = true
         }
 
