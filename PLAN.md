@@ -100,10 +100,11 @@
   Service 非正常销毁时会把活跃下载持久化为 interrupted error；App 初始化时也会审计
   DataStore 中残留的 downloading 记录并标记为 interrupted error；已新增真机 instrumentation
   验证模型和 AI 资源下载审计会把残留 downloading 状态转成 interrupted error。基础 job id、
-  attempt/retry 计数和速度 metadata 已随模型和 ASR/OCR 下载状态持久化；后续仍要补真实
-  service/recent task 恢复验收。`ModelDownloadService` 和 `AiAssetDownloadService` 已显式处理
-  `onTaskRemoved`，把活跃下载标记为 interrupted error 并撤销前台通知，避免 recent task 移除时
-  静默丢失状态。
+  attempt/retry 计数和速度 metadata 已随模型和 ASR/OCR 下载状态持久化。`ModelDownloadService`
+  和 `AiAssetDownloadService` 已显式处理 `onTaskRemoved`，把活跃下载标记为 interrupted error
+  并撤销前台通知，避免 recent task 移除时静默丢失状态；已新增真机 instrumentation 通过
+  `am stack remove` 覆盖模型下载和 OCR 资源下载的真实 task removed 路径。后续仍要补真实
+  service 被系统重启恢复验收。
 - 两套下载 service/notifier 重复实现下载 job、foreground notification、取消动作、
   进度节流和错误展示，后续应收敛为统一 download runtime，再由 model/AI asset
   adapter 提供 job metadata。Service 内部 repository 创建点已先收敛到默认依赖工厂，
@@ -147,11 +148,10 @@
   资源下载；`onClearAllModels()` 会取消模型下载、AI 资源下载和 ASR runtime。
   `onClearAllModels()` 现在也会立即把下载中的 ASR/OCR UI 状态收敛回 NotDownloaded，
   但不会误清已经 Ready 的资源。后续仍要补这些 UI 入口到 service/notification 的真机验收。
-- 还缺少前台服务被系统重启、
-  recent task 划掉后的自动化或手动验收用例。
+- 还缺少前台服务被系统重启的自动化或手动验收用例。
   当前已覆盖 App 启动审计残留 downloading 的基础恢复机制，service 也已实现
-  `onTaskRemoved` 中断持久化；但还没覆盖真实 service 被系统重启或 recent task 划掉时的
-  端到端用户路径。
+  `onTaskRemoved` 中断持久化；真机 task removed 测试已覆盖模型下载和 OCR 资源下载通过
+  系统 task 移除后进入 interrupted error。后续还没覆盖真实 service 被系统重启时的端到端用户路径。
   通知权限拒绝现在会阻止下载启动，并把模型或对应 ASR/OCR 资源状态置为可见错误；
   已新增 ViewModel 单测和 Compose 真机测试覆盖该错误展示，后续仍可补真实系统权限弹窗流程。
 
@@ -472,7 +472,9 @@ DI 默认决策：
     retry 计数、稳定 job id 和速度计算；
     已新增 service `ACTION_START` 真机测试，使用 fake repository 覆盖完成态持久化和
     失败后重试会进入新 attempt/jobId 并由 service 写回终态；
-    后续还需补真实网络 retry 端到端和真实 service/recent task 恢复测试。
+    已新增真机 task removed 测试，覆盖模型下载和 OCR 资源下载的 foreground service 在
+    `am stack remove` 后持久化 interrupted error；
+    后续还需补真实网络 retry 端到端和真实 service 重启恢复测试。
   - 已新增 AI asset spec JVM 测试，覆盖 OCR PP-OCRv5 mobile 必需文件、URL resource
     和 tar.gz entry 配置。
 - Compose UI 测试：
