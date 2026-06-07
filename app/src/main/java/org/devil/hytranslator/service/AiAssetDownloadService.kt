@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import androidx.core.app.ServiceCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,10 +30,15 @@ class AiAssetDownloadService : Service() {
         notifier = AiAssetDownloadNotifier(applicationContext)
         stateStore = AiAssetDownloadStateStore(applicationContext)
         downloadRuntime = DownloadForegroundRuntime(
-            service = this,
             scope = serviceScope,
-            notificationId = AiAssetDownloadNotifier::notificationId,
-            foregroundServiceType = ::foregroundServiceType,
+            publishNotification = { asset, notification ->
+                ServiceCompat.startForeground(
+                    this,
+                    AiAssetDownloadNotifier.notificationId(asset),
+                    notification,
+                    foregroundServiceType(),
+                )
+            },
             callbacks = AiAssetDownloadCallbacks(),
         )
     }

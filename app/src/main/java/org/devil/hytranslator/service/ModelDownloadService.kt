@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import androidx.core.app.ServiceCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,10 +34,15 @@ class ModelDownloadService : Service() {
         notifier = ModelDownloadNotifier(applicationContext)
         stateStore = ModelDownloadStateStore(applicationContext)
         downloadRuntime = DownloadForegroundRuntime(
-            service = this,
             scope = serviceScope,
-            notificationId = { ModelDownloadNotifier.NOTIFICATION_ID },
-            foregroundServiceType = ::foregroundServiceType,
+            publishNotification = { _, notification ->
+                ServiceCompat.startForeground(
+                    this,
+                    ModelDownloadNotifier.NOTIFICATION_ID,
+                    notification,
+                    foregroundServiceType(),
+                )
+            },
             callbacks = ModelDownloadCallbacks(),
         )
     }

@@ -1,8 +1,6 @@
 package org.devil.hytranslator.service
 
 import android.app.Notification
-import android.app.Service
-import androidx.core.app.ServiceCompat
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -11,10 +9,8 @@ import kotlinx.coroutines.launch
 import org.devil.hytranslator.domain.model.DownloadProgress
 
 internal class DownloadForegroundRuntime<T>(
-    private val service: Service,
     private val scope: CoroutineScope,
-    private val notificationId: (T) -> Int,
-    private val foregroundServiceType: () -> Int,
+    private val publishNotification: (target: T, notification: Notification) -> Unit,
     private val callbacks: Callbacks<T>,
 ) {
     fun start(
@@ -22,12 +18,7 @@ internal class DownloadForegroundRuntime<T>(
         initialNotification: Notification,
         downloadFlow: suspend () -> Flow<DownloadProgress>,
     ): Job {
-        ServiceCompat.startForeground(
-            service,
-            notificationId(target),
-            initialNotification,
-            foregroundServiceType(),
-        )
+        publishNotification(target, initialNotification)
 
         return scope.launch {
             callbacks.setDownloading(target, null)
@@ -68,12 +59,7 @@ internal class DownloadForegroundRuntime<T>(
     private fun updateForeground(target: T, downloaded: Long, total: Long) {
         if (!callbacks.shouldPublishProgress(target, downloaded, total)) return
 
-        ServiceCompat.startForeground(
-            service,
-            notificationId(target),
-            callbacks.progressNotification(target, downloaded, total),
-            foregroundServiceType(),
-        )
+        publishNotification(target, callbacks.progressNotification(target, downloaded, total))
     }
 
     interface Callbacks<T> {

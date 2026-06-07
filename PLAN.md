@@ -383,9 +383,11 @@ DI 默认决策：
     再添加 API 34+ UIDT scheduler，Android 13 及以下继续使用当前 dataSync FGS fallback。
   - 已新增 `DownloadStartPolicy` 和 `DownloadStartScheduler`：API 34+ 选择 UIDT job，
     Android 13 fallback 到当前 dataSync FGS，并已补 JVM 测试覆盖选择规则；manifest 已声明
-    `RUN_USER_INITIATED_JOBS` 和两个 `JobService`。当前 UIDT JobService 仍作为调度过渡层，
-    会设置 UIDT notification 后委托现有 FGS 执行真实下载；下一步必须把真实下载执行体迁入
-    UIDT JobService 共用 runtime，避免 API 34+ 仍依赖 FGS 作为主执行机制。
+    `RUN_USER_INITIATED_JOBS` 和两个 `JobService`。当前 UIDT JobService 已直接复用
+    `DownloadForegroundRuntime` 执行真实下载、通过 `setNotification(...)` 发布 UIDT 通知，
+    不再委托 FGS 作为主执行机制；Android 13 及以下仍走现有 dataSync FGS fallback。
+    已新增真机 manifest 测试验证 UIDT 权限和 `BIND_JOB_SERVICE` 声明，后续仍要补真实
+    JobScheduler schedule/run/timeout 端到端 smoke。
 - 下载状态模型已从 Service 内部类型迁到 domain 层，并已移除 service 静态状态流；
   当前通过 DataStore 持久化基础下载状态，service 异常销毁会记录 interrupted error；
   App 初始化会把上次进程直接结束后残留的 downloading 记录审计为 interrupted error；
