@@ -187,8 +187,17 @@ class PaddleLiteOcrTextRepositoryTest {
         )
 
         assertEquals(2, boxes.size)
-        assertTextBox(left = 2, top = 4, right = 8, bottom = 12, score = 0.9f, actual = boxes[0])
-        assertTextBox(left = 10, top = 16, right = 14, bottom = 24, score = 0.8f, actual = boxes[1])
+        assertEquals(0.9f, boxes[0].score, 0.0001f)
+        assertEquals(0.8f, boxes[1].score, 0.0001f)
+        assertTrue(boxes[0].left < 2)
+        assertTrue(boxes[0].top < 4)
+        assertTrue(boxes[0].right > 8)
+        assertTrue(boxes[0].bottom > 12)
+        assertEquals(4, boxes[0].points.size)
+        assertTrue(boxes[1].left < 10)
+        assertTrue(boxes[1].top < 16)
+        assertTrue(boxes[1].right > 14)
+        assertTrue(boxes[1].bottom > 24)
     }
 
     @Test
@@ -212,6 +221,43 @@ class PaddleLiteOcrTextRepositoryTest {
 
         assertEquals(2, boxes.size)
         assertEquals(listOf(1, 7), PaddleOcrDetectionPostprocessor.sortForReading(boxes).map { it.left })
+    }
+
+    @Test
+    fun detectionPostprocessor_returnsRotatedTextBoxForDiagonalComponent() {
+        val output = FloatArray(12 * 12)
+        for (index in 2..7) {
+            fillRect(
+                output = output,
+                width = 12,
+                left = index,
+                top = index,
+                right = index + 2,
+                bottom = index + 1,
+                value = 0.9f,
+            )
+        }
+
+        val boxes = PaddleOcrDetectionPostprocessor.detectTextBoxes(
+            probabilities = output,
+            shape = longArrayOf(1, 1, 12, 12),
+            resize = PaddleOcrDetectionResize(
+                width = 12,
+                height = 12,
+                ratioWidth = 1f,
+                ratioHeight = 1f,
+            ),
+            minArea = 4,
+        )
+
+        assertEquals(1, boxes.size)
+        val box = boxes.single()
+        assertEquals(4, box.points.size)
+        assertTrue(box.points.hasDiagonalEdge())
+        assertTrue(box.left < 2)
+        assertTrue(box.top < 2)
+        assertTrue(box.right > 9)
+        assertTrue(box.bottom > 8)
     }
 
     @Test
@@ -280,5 +326,12 @@ class PaddleLiteOcrTextRepositoryTest {
             assertEquals(bottom, actual.bottom)
             assertEquals(score, actual.score, 0.0001f)
         }
+
+        fun List<PaddleOcrPoint>.hasDiagonalEdge(): Boolean =
+            indices.any { index ->
+                val current = this[index]
+                val next = this[(index + 1) % size]
+                current.x != next.x && current.y != next.y
+            }
     }
 }

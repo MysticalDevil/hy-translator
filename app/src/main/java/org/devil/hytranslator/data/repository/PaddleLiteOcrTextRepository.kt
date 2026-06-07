@@ -3,7 +3,9 @@ package org.devil.hytranslator.data.repository
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
 import com.baidu.paddle.lite.MobileConfig
@@ -14,10 +16,15 @@ import kotlinx.coroutines.withContext
 import org.devil.hytranslator.platform.ocr.OcrTextRepository
 import java.io.File
 import java.util.ArrayDeque
+import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.ceil
+import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 class PaddleLiteOcrTextRepository(
     private val context: Context,
@@ -180,11 +187,40 @@ class PaddleLiteOcrSession(
 
     private fun Bitmap.crop(box: PaddleOcrTextBox): Bitmap {
         val paddedBox = box.expandForRecognition(sourceWidth = width, sourceHeight = height)
-        val left = paddedBox.left.coerceIn(0, width - 1)
-        val top = paddedBox.top.coerceIn(0, height - 1)
-        val right = paddedBox.right.coerceIn(left + 1, width)
-        val bottom = paddedBox.bottom.coerceIn(top + 1, height)
-        return Bitmap.createBitmap(this, left, top, right - left, bottom - top)
+        if (paddedBox.isAxisAligned) {
+            val left = paddedBox.left.coerceIn(0, width - 1)
+            val top = paddedBox.top.coerceIn(0, height - 1)
+            val right = paddedBox.right.coerceIn(left + 1, width)
+            val bottom = paddedBox.bottom.coerceIn(top + 1, height)
+            return Bitmap.createBitmap(this, left, top, right - left, bottom - top)
+        }
+
+        val targetWidth = paddedBox.edgeWidth.coerceAtLeast(1)
+        val targetHeight = paddedBox.edgeHeight.coerceAtLeast(1)
+        val output = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+        val src = paddedBox.points.flatMap { point ->
+            listOf(
+                point.x.coerceIn(0f, (width - 1).toFloat()),
+                point.y.coerceIn(0f, (height - 1).toFloat()),
+            )
+        }.toFloatArray()
+        val dst = floatArrayOf(
+            0f,
+            0f,
+            targetWidth.toFloat(),
+            0f,
+            targetWidth.toFloat(),
+            targetHeight.toFloat(),
+            0f,
+            targetHeight.toFloat(),
+        )
+        val matrix = Matrix().apply {
+            check(setPolyToPoly(src, 0, dst, 0, 4)) {
+                "PaddleOCR perspective crop matrix failed"
+            }
+        }
+        Canvas(output).drawBitmap(this, matrix, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        return output
     }
 }
 
@@ -385,16 +421,43 @@ object PaddleOcrDetectionPreprocessor {
     private const val DET_STD_RED = 0.229f
 }
 
+data class PaddleOcrPoint(
+    val x: Float,
+    val y: Float,
+)
+
 data class PaddleOcrTextBox(
     val left: Int,
     val top: Int,
     val right: Int,
     val bottom: Int,
     val score: Float,
+    val points: List<PaddleOcrPoint> = listOf(
+        PaddleOcrPoint(left.toFloat(), top.toFloat()),
+        PaddleOcrPoint(right.toFloat(), top.toFloat()),
+        PaddleOcrPoint(right.toFloat(), bottom.toFloat()),
+        PaddleOcrPoint(left.toFloat(), bottom.toFloat()),
+    ),
 ) {
     val width: Int get() = right - left
     val height: Int get() = bottom - top
     val area: Int get() = width * height
+    val isAxisAligned: Boolean
+        get() = points.size != 4 ||
+            points[0].y == points[1].y &&
+            points[1].x == points[2].x &&
+            points[2].y == points[3].y &&
+            points[3].x == points[0].x
+    val edgeWidth: Int
+        get() = max(
+            points[0].distanceTo(points[1]).roundToInt(),
+            points[2].distanceTo(points[3]).roundToInt(),
+        )
+    val edgeHeight: Int
+        get() = max(
+            points[1].distanceTo(points[2]).roundToInt(),
+            points[3].distanceTo(points[0]).roundToInt(),
+        )
 
     fun expandForRecognition(
         sourceWidth: Int,
@@ -411,11 +474,25 @@ data class PaddleOcrTextBox(
 
         val horizontalPadding = (width * horizontalRatio).roundToInt().coerceAtLeast(2)
         val verticalPadding = (height * verticalRatio).roundToInt().coerceAtLeast(2)
+        val centerX = points.map { it.x }.average().toFloat()
+        val centerY = points.map { it.y }.average().toFloat()
+        val expandedPoints = points.map { point ->
+            val dx = point.x - centerX
+            val dy = point.y - centerY
+            val length = hypot(dx, dy).coerceAtLeast(1f)
+            PaddleOcrPoint(
+                x = (point.x + dx / length * horizontalPadding)
+                    .coerceIn(0f, sourceWidth.toFloat()),
+                y = (point.y + dy / length * verticalPadding)
+                    .coerceIn(0f, sourceHeight.toFloat()),
+            )
+        }
         return copy(
             left = (left - horizontalPadding).coerceAtLeast(0),
             top = (top - verticalPadding).coerceAtLeast(0),
             right = (right + horizontalPadding).coerceAtMost(sourceWidth),
             bottom = (bottom + verticalPadding).coerceAtMost(sourceHeight),
+            points = expandedPoints,
         )
     }
 
@@ -424,6 +501,9 @@ data class PaddleOcrTextBox(
         const val DEFAULT_RECOGNITION_VERTICAL_PADDING_RATIO = 0.15f
     }
 }
+
+private fun PaddleOcrPoint.distanceTo(other: PaddleOcrPoint): Float =
+    hypot(x - other.x, y - other.y)
 
 object PaddleOcrDetectionPostprocessor {
     fun detectTextBoxes(
@@ -463,7 +543,11 @@ object PaddleOcrDetectionPostprocessor {
                     startY = y,
                     threshold = threshold,
                 )
-                val box = component.toSourceBox(resize)
+                val box = component.toSourceBox(
+                    resize = resize,
+                    unclip = ::unclip,
+                    minimumAreaRect = ::minimumAreaRect,
+                )
                 if (box.area >= minArea) {
                     boxes += box
                 }
@@ -496,6 +580,7 @@ object PaddleOcrDetectionPostprocessor {
         var bottom = startY
         var score = 0f
         var count = 0
+        val contour = mutableListOf<PaddleOcrPoint>()
 
         while (queue.isNotEmpty()) {
             val encoded = queue.removeFirst()
@@ -513,6 +598,12 @@ object PaddleOcrDetectionPostprocessor {
             bottom = max(bottom, y)
             score += probabilities[index]
             count += 1
+            if (isBoundaryPixel(probabilities, width, height, x, y, threshold)) {
+                contour += PaddleOcrPoint(x.toFloat(), y.toFloat())
+                contour += PaddleOcrPoint((x + 1).toFloat(), y.toFloat())
+                contour += PaddleOcrPoint((x + 1).toFloat(), (y + 1).toFloat())
+                contour += PaddleOcrPoint(x.toFloat(), (y + 1).toFloat())
+            }
 
             if (x > 0) queue.add(y * width + x - 1)
             if (x < width - 1) queue.add(y * width + x + 1)
@@ -526,7 +617,177 @@ object PaddleOcrDetectionPostprocessor {
             right = right + 1,
             bottom = bottom + 1,
             score = if (count == 0) 0f else score / count,
+            contour = contour,
         )
+    }
+
+    private fun isBoundaryPixel(
+        probabilities: FloatArray,
+        width: Int,
+        height: Int,
+        x: Int,
+        y: Int,
+        threshold: Float,
+    ): Boolean {
+        val neighbors = intArrayOf(-1, 0, 1, 0, 0, -1, 0, 1)
+        for (index in neighbors.indices step 2) {
+            val nextX = x + neighbors[index]
+            val nextY = y + neighbors[index + 1]
+            if (nextX !in 0 until width || nextY !in 0 until height) return true
+            if (probabilities[nextY * width + nextX] < threshold) return true
+        }
+        return false
+    }
+
+    private fun unclip(points: List<PaddleOcrPoint>): List<PaddleOcrPoint> {
+        val hull = convexHull(points)
+        if (hull.size < MIN_CONTOUR_POINTS) return points
+        val centerX = hull.map { it.x }.average().toFloat()
+        val centerY = hull.map { it.y }.average().toFloat()
+        val distance = polygonArea(hull) * UNCLIP_RATIO / polygonPerimeter(hull).coerceAtLeast(1f)
+        return hull.map { point ->
+            val dx = point.x - centerX
+            val dy = point.y - centerY
+            val length = hypot(dx, dy).coerceAtLeast(1f)
+            PaddleOcrPoint(
+                x = point.x + dx / length * distance,
+                y = point.y + dy / length * distance,
+            )
+        }
+    }
+
+    private fun minimumAreaRect(points: List<PaddleOcrPoint>): List<PaddleOcrPoint> {
+        val hull = convexHull(points)
+        if (hull.size < MIN_CONTOUR_POINTS) return points
+
+        var best: RotatedRect? = null
+        for (index in hull.indices) {
+            val start = hull[index]
+            val end = hull[(index + 1) % hull.size]
+            val angle = atan2(end.y - start.y, end.x - start.x)
+            val axisX = cos(angle)
+            val axisY = sin(angle)
+            val normalX = -axisY
+            val normalY = axisX
+            var minAxis = Float.POSITIVE_INFINITY
+            var maxAxis = Float.NEGATIVE_INFINITY
+            var minNormal = Float.POSITIVE_INFINITY
+            var maxNormal = Float.NEGATIVE_INFINITY
+            hull.forEach { point ->
+                val projectedAxis = point.x * axisX + point.y * axisY
+                val projectedNormal = point.x * normalX + point.y * normalY
+                minAxis = min(minAxis, projectedAxis)
+                maxAxis = max(maxAxis, projectedAxis)
+                minNormal = min(minNormal, projectedNormal)
+                maxNormal = max(maxNormal, projectedNormal)
+            }
+            val area = (maxAxis - minAxis) * (maxNormal - minNormal)
+            if (best == null || area < best.area) {
+                best = RotatedRect(
+                    axisX = axisX,
+                    axisY = axisY,
+                    normalX = normalX,
+                    normalY = normalY,
+                    minAxis = minAxis,
+                    maxAxis = maxAxis,
+                    minNormal = minNormal,
+                    maxNormal = maxNormal,
+                    area = area,
+                )
+            }
+        }
+        return best?.toPoints()?.orderClockwiseFromTopLeft().orEmpty()
+    }
+
+    private fun convexHull(points: List<PaddleOcrPoint>): List<PaddleOcrPoint> {
+        val sorted = points
+            .distinct()
+            .sortedWith(compareBy<PaddleOcrPoint> { it.x }.thenBy { it.y })
+        if (sorted.size <= 2) return sorted
+
+        val lower = mutableListOf<PaddleOcrPoint>()
+        sorted.forEach { point ->
+            while (lower.size >= 2 &&
+                cross(lower[lower.lastIndex - 1], lower.last(), point) <= 0f
+            ) {
+                lower.removeAt(lower.lastIndex)
+            }
+            lower += point
+        }
+
+        val upper = mutableListOf<PaddleOcrPoint>()
+        sorted.asReversed().forEach { point ->
+            while (upper.size >= 2 &&
+                cross(upper[upper.lastIndex - 1], upper.last(), point) <= 0f
+            ) {
+                upper.removeAt(upper.lastIndex)
+            }
+            upper += point
+        }
+
+        return (lower.dropLast(1) + upper.dropLast(1))
+    }
+
+    private fun cross(
+        origin: PaddleOcrPoint,
+        a: PaddleOcrPoint,
+        b: PaddleOcrPoint,
+    ): Float = (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x)
+
+    private fun polygonArea(points: List<PaddleOcrPoint>): Float {
+        if (points.size < MIN_CONTOUR_POINTS) return 0f
+        var area = 0f
+        for (index in points.indices) {
+            val current = points[index]
+            val next = points[(index + 1) % points.size]
+            area += current.x * next.y - next.x * current.y
+        }
+        return abs(area) / 2f
+    }
+
+    private fun polygonPerimeter(points: List<PaddleOcrPoint>): Float {
+        if (points.size < 2) return 0f
+        var perimeter = 0f
+        for (index in points.indices) {
+            perimeter += points[index].distanceTo(points[(index + 1) % points.size])
+        }
+        return perimeter
+    }
+
+    private data class RotatedRect(
+        val axisX: Float,
+        val axisY: Float,
+        val normalX: Float,
+        val normalY: Float,
+        val minAxis: Float,
+        val maxAxis: Float,
+        val minNormal: Float,
+        val maxNormal: Float,
+        val area: Float,
+    ) {
+        fun toPoints(): List<PaddleOcrPoint> =
+            listOf(
+                toPoint(minAxis, minNormal),
+                toPoint(maxAxis, minNormal),
+                toPoint(maxAxis, maxNormal),
+                toPoint(minAxis, maxNormal),
+            )
+
+        private fun toPoint(axis: Float, normal: Float): PaddleOcrPoint =
+            PaddleOcrPoint(
+                x = axis * axisX + normal * normalX,
+                y = axis * axisY + normal * normalY,
+            )
+    }
+
+    private fun List<PaddleOcrPoint>.orderClockwiseFromTopLeft(): List<PaddleOcrPoint> {
+        val centerX = map { it.x }.average().toFloat()
+        val centerY = map { it.y }.average().toFloat()
+        val ordered = sortedBy { point -> atan2(point.y - centerY, point.x - centerX) }
+        val topLeftIndex = ordered.indices.minBy { index ->
+            ordered[index].x + ordered[index].y
+        }
+        return ordered.drop(topLeftIndex) + ordered.take(topLeftIndex)
     }
 
     private data class DetectionComponent(
@@ -535,19 +796,47 @@ object PaddleOcrDetectionPostprocessor {
         val right: Int,
         val bottom: Int,
         val score: Float,
+        val contour: List<PaddleOcrPoint>,
     ) {
-        fun toSourceBox(resize: PaddleOcrDetectionResize): PaddleOcrTextBox =
-            PaddleOcrTextBox(
-                left = (left / resize.ratioWidth).roundToInt(),
-                top = (top / resize.ratioHeight).roundToInt(),
-                right = (right / resize.ratioWidth).roundToInt(),
-                bottom = (bottom / resize.ratioHeight).roundToInt(),
+        fun toSourceBox(
+            resize: PaddleOcrDetectionResize,
+            unclip: (List<PaddleOcrPoint>) -> List<PaddleOcrPoint>,
+            minimumAreaRect: (List<PaddleOcrPoint>) -> List<PaddleOcrPoint>,
+        ): PaddleOcrTextBox {
+            val rectPoints = if (contour.size >= MIN_CONTOUR_POINTS) {
+                minimumAreaRect(unclip(contour))
+            } else {
+                listOf(
+                    PaddleOcrPoint(left.toFloat(), top.toFloat()),
+                    PaddleOcrPoint(right.toFloat(), top.toFloat()),
+                    PaddleOcrPoint(right.toFloat(), bottom.toFloat()),
+                    PaddleOcrPoint(left.toFloat(), bottom.toFloat()),
+                )
+            }.map { point ->
+                PaddleOcrPoint(
+                    x = point.x / resize.ratioWidth,
+                    y = point.y / resize.ratioHeight,
+                )
+            }
+            val sourceLeft = rectPoints.minOf { it.x }.roundToInt()
+            val sourceTop = rectPoints.minOf { it.y }.roundToInt()
+            val sourceRight = rectPoints.maxOf { it.x }.roundToInt()
+            val sourceBottom = rectPoints.maxOf { it.y }.roundToInt()
+            return PaddleOcrTextBox(
+                left = sourceLeft,
+                top = sourceTop,
+                right = sourceRight,
+                bottom = sourceBottom,
                 score = score,
+                points = rectPoints,
             )
+        }
     }
 
     private const val DEFAULT_THRESHOLD = 0.3f
     private const val DEFAULT_MIN_AREA = 16
+    private const val MIN_CONTOUR_POINTS = 3
+    private const val UNCLIP_RATIO = 1.5f
 }
 
 object PaddleOcrCtcDecoder {
