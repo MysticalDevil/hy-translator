@@ -328,6 +328,88 @@ class TranslatorScreenTest {
     }
 
     @Test
+    fun translatorScreen_voiceButtonRequestsAsrDownloadWhenAssetMissing() {
+        val requestedAssets = mutableListOf<AiAsset>()
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "",
+                    outputText = "",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    asrAssetState = AiAssetState.NotDownloaded,
+                    ocrAssetState = AiAssetState.Ready,
+                    modelStatus = ModelStatus.Ready,
+                    onDownloadAiAsset = requestedAssets::add,
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(string(R.string.cd_voice_input_toggle))
+            .performClick()
+
+        org.junit.Assert.assertEquals(listOf(AiAsset.AsrStreamingZipformer), requestedAssets)
+    }
+
+    @Test
+    fun translatorScreen_voiceButtonTogglesListeningStateWhenAssetReady() {
+        val toggles = mutableListOf<Boolean>()
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "",
+                    outputText = "",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    asrAssetState = AiAssetState.Ready,
+                    ocrAssetState = AiAssetState.Ready,
+                    modelStatus = ModelStatus.Ready,
+                    onVoiceInputToggle = toggles::add,
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(string(R.string.cd_voice_input_toggle))
+            .performClick()
+
+        org.junit.Assert.assertEquals(listOf(true), toggles)
+    }
+
+    @Test
+    fun translatorScreen_voiceButtonStopsListeningWhenActive() {
+        val toggles = mutableListOf<Boolean>()
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "",
+                    outputText = "",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    voiceInputState = VoiceInputState.Listening,
+                    asrAssetState = AiAssetState.Ready,
+                    ocrAssetState = AiAssetState.Ready,
+                    modelStatus = ModelStatus.Ready,
+                    onVoiceInputToggle = toggles::add,
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(string(R.string.cd_voice_input_toggle))
+            .performClick()
+
+        org.junit.Assert.assertEquals(listOf(false), toggles)
+    }
+
+    @Test
     fun translatorScreen_assetDownloadCancelButtonsEmitMatchingAsset() {
         val cancelledAssets = mutableListOf<AiAsset>()
         composeRule.setContent {
@@ -434,6 +516,7 @@ class TranslatorScreenTest {
         modelStatus: ModelStatus,
         downloadProgress: DownloadProgress? = null,
         onSwapLanguages: () -> Unit = {},
+        onVoiceInputToggle: (Boolean) -> Unit = {},
         onDownloadAiAsset: (AiAsset) -> Unit = {},
         onCancelAiAssetDownload: (AiAsset) -> Unit = {},
         onCancelDownload: () -> Unit = {},
@@ -460,7 +543,7 @@ class TranslatorScreenTest {
             ocrAssetState = ocrAssetState,
             ocrFlow = OcrFlow.Hidden,
             highlightedAiAsset = highlightedAiAsset,
-            onVoiceInputToggle = {},
+            onVoiceInputToggle = onVoiceInputToggle,
             onDownloadAiAsset = onDownloadAiAsset,
             onCancelAiAssetDownload = onCancelAiAssetDownload,
             onStartOcr = {},
