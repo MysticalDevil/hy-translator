@@ -317,7 +317,7 @@ class TranslatorViewModel(
                 isTranslating = false,
                 modelStatus = ModelStatus.NotDownloaded,
                 downloadProgress = null,
-            )
+            ).resetDownloadingAiAssets()
         }
         loadJob = viewModelScope.launch {
             try {
@@ -476,6 +476,20 @@ class TranslatorViewModel(
             AiAsset.AsrStreamingZipformer -> _uiState.value.asrAssetState
             AiAsset.OcrPpOcrV5Mobile -> _uiState.value.ocrAssetState
         }
+
+    private fun TranslatorUiState.resetDownloadingAiAssets(): TranslatorUiState =
+        copy(
+            asrAssetState = if (asrAssetState is AiAssetState.Downloading) {
+                AiAssetState.NotDownloaded
+            } else {
+                asrAssetState
+            },
+            ocrAssetState = if (ocrAssetState is AiAssetState.Downloading) {
+                AiAssetState.NotDownloaded
+            } else {
+                ocrAssetState
+            },
+        )
 
     fun onSwapLanguages() {
         _uiState.update {

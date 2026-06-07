@@ -679,6 +679,7 @@ class TranslatorViewModelTest {
         val aiAssetRepository = FakeAiAssetRepository().apply {
             asrState.value = AiAssetState.Ready
         }
+        val ocrProgress = DownloadProgress.Downloading(downloaded = 25L, total = 100L)
         val voiceInputRepository = FakeVoiceInputRepository()
         val downloadActions = FakeModelDownloadActions()
         val aiAssetDownloadActions = FakeAiAssetDownloadActions()
@@ -691,6 +692,12 @@ class TranslatorViewModelTest {
 
         viewModel.initialize()
         advanceUntilIdle()
+        aiAssetDownloadActions.mutableState(AiAsset.OcrPpOcrV5Mobile).value =
+            AiAssetDownloadState.Downloading(
+                asset = AiAsset.OcrPpOcrV5Mobile,
+                progress = ocrProgress,
+            )
+        advanceUntilIdle()
         viewModel.onEvent(TranslatorEvent.VoiceInputToggled(true))
         advanceUntilIdle()
         viewModel.onEvent(TranslatorEvent.ClearAllModels)
@@ -701,6 +708,8 @@ class TranslatorViewModelTest {
         assertTrue(voiceInputRepository.stopped)
         assertSame(VoiceInputState.Idle, viewModel.uiState.value.voiceInputState)
         assertSame(ModelStatus.NotDownloaded, viewModel.uiState.value.modelStatus)
+        assertSame(AiAssetState.Ready, viewModel.uiState.value.asrAssetState)
+        assertSame(AiAssetState.NotDownloaded, viewModel.uiState.value.ocrAssetState)
     }
 
     @Test

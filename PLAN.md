@@ -129,7 +129,8 @@
   确认“下载完成但尚未加载”状态对用户可解释。
 - `onSelectModel()` 会取消当前模型下载、停止 ASR runtime，但保留独立的 ASR/OCR
   资源下载；`onClearAllModels()` 会取消模型下载、AI 资源下载和 ASR runtime。
-  后续仍要补这些 UI 入口到 service/notification 的真机验收。
+  `onClearAllModels()` 现在也会立即把下载中的 ASR/OCR UI 状态收敛回 NotDownloaded，
+  但不会误清已经 Ready 的资源。后续仍要补这些 UI 入口到 service/notification 的真机验收。
 - 还缺少前台服务被系统重启、
   recent task 划掉后的自动化或手动验收用例。
   当前已覆盖 App 启动审计残留 downloading 的基础恢复机制，但还没覆盖真实 service 被系统重启
@@ -351,7 +352,7 @@ DI 默认决策：
   - service/通知取消写入 Idle 后，ViewModel 已把正在下载的模型或目标 ASR/OCR 资源回写为
     NotDownloaded，不会影响其他资源状态，也不会用初始 Idle 覆盖 Ready 状态。
   - 切换模型会取消模型下载并停止 ASR runtime；清理模型会取消模型下载、AI 资源下载
-    和 ASR runtime。后续补真机通知动作验证。
+    和 ASR runtime，并立即重置正在下载的 AI 资源 UI 状态。后续补真机通知动作验证。
 - 评估并落地 Google 推荐的用户发起数据传输方案：
   - Android 14+ 优先考虑 User-Initiated Data Transfer job。
   - 需要即时前台可见和兼容旧系统时保留 Foreground Service fallback。
