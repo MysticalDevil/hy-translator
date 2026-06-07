@@ -7,6 +7,7 @@ sealed class ModelDownloadState {
         val progress: DownloadProgress?,
         val attempt: Long = 0L,
         val jobId: String = "",
+        val bytesPerSecond: Long? = null,
     ) : ModelDownloadState()
     data class Completed(
         val model: ModelOption,

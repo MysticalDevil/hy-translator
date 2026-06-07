@@ -2,6 +2,7 @@ package org.devil.hytranslator.service
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -15,6 +16,7 @@ import org.devil.hytranslator.platform.download.ModelDownloadStateStore
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -68,6 +70,7 @@ class DownloadRecoveryAuditTest {
             modelStateStore.state.first { it is ModelDownloadState.Downloading }
         } as ModelDownloadState.Downloading
 
+        delay(SPEED_SAMPLE_DELAY_MS)
         modelStateStore.setDownloading(
             model = model,
             progress = DownloadProgress.Downloading(downloaded = 50L, total = 100L),
@@ -98,6 +101,10 @@ class DownloadRecoveryAuditTest {
         assertEquals("model:Q4_K_M:1", first.jobId)
         assertEquals(first.jobId, progressUpdate.jobId)
         assertEquals("model:Q4_K_M:2", retry.jobId)
+        assertTrue(
+            "Expected positive model transfer speed",
+            (progressUpdate.bytesPerSecond ?: 0L) > 0L,
+        )
     }
 
     @Test
@@ -163,6 +170,19 @@ class DownloadRecoveryAuditTest {
                 .first { it is AiAssetDownloadState.Downloading }
         } as AiAssetDownloadState.Downloading
 
+        delay(SPEED_SAMPLE_DELAY_MS)
+        aiAssetStateStore.setDownloading(
+            asset = AiAsset.OcrPpOcrV5Mobile,
+            progress = DownloadProgress.Downloading(downloaded = 40L, total = 80L),
+        )
+        val ocrProgressUpdate = withTimeout(5_000) {
+            aiAssetStateStore.state(AiAsset.OcrPpOcrV5Mobile)
+                .first { state ->
+                    state is AiAssetDownloadState.Downloading &&
+                        state.progress == DownloadProgress.Downloading(downloaded = 40L, total = 80L)
+                }
+        } as AiAssetDownloadState.Downloading
+
         aiAssetStateStore.setError(AiAsset.OcrPpOcrV5Mobile, "network failed")
         aiAssetStateStore.setDownloading(
             asset = AiAsset.OcrPpOcrV5Mobile,
@@ -181,11 +201,17 @@ class DownloadRecoveryAuditTest {
         assertEquals(2L, ocrRetry.attempt)
         assertEquals("ai:AsrStreamingZipformer:1", asrFirst.jobId)
         assertEquals("ai:OcrPpOcrV5Mobile:1", ocrFirst.jobId)
+        assertEquals(ocrFirst.jobId, ocrProgressUpdate.jobId)
         assertEquals("ai:OcrPpOcrV5Mobile:2", ocrRetry.jobId)
+        assertTrue(
+            "Expected positive OCR transfer speed",
+            (ocrProgressUpdate.bytesPerSecond ?: 0L) > 0L,
+        )
         assertSame(AiAsset.OcrPpOcrV5Mobile, ocrRetry.asset)
     }
 
     private companion object {
         const val DOWNLOAD_INTERRUPTED_MESSAGE = "Download was interrupted"
+        const val SPEED_SAMPLE_DELAY_MS = 25L
     }
 }

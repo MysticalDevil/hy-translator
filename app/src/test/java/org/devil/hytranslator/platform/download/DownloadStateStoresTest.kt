@@ -19,6 +19,7 @@ class DownloadStateStoresTest {
             error = null,
             attempt = 3L,
             jobId = "model:Q6_K:3",
+            bytesPerSecond = 1024L,
             progressType = "downloading",
             downloaded = 20L,
             total = 100L,
@@ -30,6 +31,7 @@ class DownloadStateStoresTest {
                 progress = DownloadProgress.Downloading(downloaded = 20L, total = 100L),
                 attempt = 3L,
                 jobId = "model:Q6_K:3",
+                bytesPerSecond = 1024L,
             ),
             state,
         )

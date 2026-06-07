@@ -35,6 +35,13 @@ class ModelDownloadStateStore(
             preferences[MODEL_JOB_ID] = modelJobId(model, attempt)
             preferences.remove(MODEL_PATH)
             preferences.remove(MODEL_ERROR)
+            preferences.writeTransferSpeed(
+                statusKey = MODEL_STATUS,
+                downloadedKey = MODEL_DOWNLOADED,
+                sampleTimeKey = MODEL_SPEED_SAMPLE_TIME,
+                speedKey = MODEL_SPEED_BYTES_PER_SECOND,
+                progress = progress,
+            )
             preferences.writeProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL, progress)
         }
     }
@@ -48,6 +55,7 @@ class ModelDownloadStateStore(
             preferences[MODEL_JOB_ID] = preferences[MODEL_JOB_ID]
                 ?: modelJobId(model, preferences[MODEL_ATTEMPT] ?: DEFAULT_ATTEMPT)
             preferences.remove(MODEL_ERROR)
+            preferences.clearTransferSpeed(MODEL_SPEED_SAMPLE_TIME, MODEL_SPEED_BYTES_PER_SECOND)
             preferences.clearProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL)
         }
     }
@@ -61,6 +69,7 @@ class ModelDownloadStateStore(
             preferences[MODEL_JOB_ID] = preferences[MODEL_JOB_ID]
                 ?: modelJobId(model, preferences[MODEL_ATTEMPT] ?: DEFAULT_ATTEMPT)
             preferences.remove(MODEL_PATH)
+            preferences.clearTransferSpeed(MODEL_SPEED_SAMPLE_TIME, MODEL_SPEED_BYTES_PER_SECOND)
             preferences.clearProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL)
         }
     }
@@ -73,6 +82,7 @@ class ModelDownloadStateStore(
             preferences.remove(MODEL_ERROR)
             preferences.remove(MODEL_ATTEMPT)
             preferences.remove(MODEL_JOB_ID)
+            preferences.clearTransferSpeed(MODEL_SPEED_SAMPLE_TIME, MODEL_SPEED_BYTES_PER_SECOND)
             preferences.clearProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL)
         }
     }
@@ -91,6 +101,7 @@ class ModelDownloadStateStore(
                         ?: modelJobId(model, preferences[MODEL_ATTEMPT] ?: DEFAULT_ATTEMPT)
                 }
                 preferences.remove(MODEL_PATH)
+                preferences.clearTransferSpeed(MODEL_SPEED_SAMPLE_TIME, MODEL_SPEED_BYTES_PER_SECOND)
                 preferences.clearProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL)
             }
         }
@@ -104,6 +115,7 @@ class ModelDownloadStateStore(
             error = this[MODEL_ERROR],
             attempt = this[MODEL_ATTEMPT],
             jobId = this[MODEL_JOB_ID],
+            bytesPerSecond = this[MODEL_SPEED_BYTES_PER_SECOND],
             progressType = this[MODEL_PROGRESS_TYPE],
             downloaded = this[MODEL_DOWNLOADED],
             total = this[MODEL_TOTAL],
@@ -117,6 +129,8 @@ class ModelDownloadStateStore(
         val MODEL_ERROR = stringPreferencesKey("model_error")
         val MODEL_ATTEMPT = longPreferencesKey("model_attempt")
         val MODEL_JOB_ID = stringPreferencesKey("model_job_id")
+        val MODEL_SPEED_SAMPLE_TIME = longPreferencesKey("model_speed_sample_time")
+        val MODEL_SPEED_BYTES_PER_SECOND = longPreferencesKey("model_speed_bytes_per_second")
         val MODEL_PROGRESS_TYPE = stringPreferencesKey("model_progress_type")
         val MODEL_DOWNLOADED = longPreferencesKey("model_downloaded")
         val MODEL_TOTAL = longPreferencesKey("model_total")
@@ -148,6 +162,13 @@ class AiAssetDownloadStateStore(
             preferences[aiAssetJobIdKey(asset)] = aiAssetJobId(asset, attempt)
             preferences.remove(aiAssetPathKey(asset))
             preferences.remove(aiAssetErrorKey(asset))
+            preferences.writeTransferSpeed(
+                statusKey = aiAssetStatusKey(asset),
+                downloadedKey = aiAssetDownloadedKey(asset),
+                sampleTimeKey = aiAssetSpeedSampleTimeKey(asset),
+                speedKey = aiAssetSpeedBytesPerSecondKey(asset),
+                progress = progress,
+            )
             preferences.writeProgress(
                 aiAssetProgressTypeKey(asset),
                 aiAssetDownloadedKey(asset),
@@ -166,6 +187,10 @@ class AiAssetDownloadStateStore(
             preferences[aiAssetJobIdKey(asset)] = preferences[aiAssetJobIdKey(asset)]
                 ?: aiAssetJobId(asset, preferences[aiAssetAttemptKey(asset)] ?: DEFAULT_ATTEMPT)
             preferences.remove(aiAssetErrorKey(asset))
+            preferences.clearTransferSpeed(
+                aiAssetSpeedSampleTimeKey(asset),
+                aiAssetSpeedBytesPerSecondKey(asset),
+            )
             preferences.clearProgress(
                 aiAssetProgressTypeKey(asset),
                 aiAssetDownloadedKey(asset),
@@ -183,6 +208,10 @@ class AiAssetDownloadStateStore(
             preferences[aiAssetJobIdKey(asset)] = preferences[aiAssetJobIdKey(asset)]
                 ?: aiAssetJobId(asset, preferences[aiAssetAttemptKey(asset)] ?: DEFAULT_ATTEMPT)
             preferences.remove(aiAssetPathKey(asset))
+            preferences.clearTransferSpeed(
+                aiAssetSpeedSampleTimeKey(asset),
+                aiAssetSpeedBytesPerSecondKey(asset),
+            )
             preferences.clearProgress(
                 aiAssetProgressTypeKey(asset),
                 aiAssetDownloadedKey(asset),
@@ -217,8 +246,12 @@ class AiAssetDownloadStateStore(
                         ?: aiAssetJobId(
                             asset,
                             preferences[aiAssetAttemptKey(asset)] ?: DEFAULT_ATTEMPT,
-                        )
+                    )
                     preferences.remove(aiAssetPathKey(asset))
+                    preferences.clearTransferSpeed(
+                        aiAssetSpeedSampleTimeKey(asset),
+                        aiAssetSpeedBytesPerSecondKey(asset),
+                    )
                     preferences.clearProgress(
                         aiAssetProgressTypeKey(asset),
                         aiAssetDownloadedKey(asset),
@@ -237,6 +270,7 @@ class AiAssetDownloadStateStore(
             error = this[aiAssetErrorKey(asset)],
             attempt = this[aiAssetAttemptKey(asset)],
             jobId = this[aiAssetJobIdKey(asset)],
+            bytesPerSecond = this[aiAssetSpeedBytesPerSecondKey(asset)],
             progressType = this[aiAssetProgressTypeKey(asset)],
             downloaded = this[aiAssetDownloadedKey(asset)],
             total = this[aiAssetTotalKey(asset)],
@@ -260,6 +294,7 @@ internal fun modelDownloadStateFromRecord(
     total: Long?,
     attempt: Long? = null,
     jobId: String? = null,
+    bytesPerSecond: Long? = null,
 ): ModelDownloadState {
     val model = modelKey?.let { key ->
         runCatching { ModelOptions.getByKey(key) }.getOrNull()
@@ -271,6 +306,7 @@ internal fun modelDownloadStateFromRecord(
             progress = progressFromRecord(progressType, downloaded, total),
             attempt = attempt ?: 0L,
             jobId = jobId.orEmpty(),
+            bytesPerSecond = bytesPerSecond,
         )
 
         STATUS_COMPLETED -> ModelDownloadState.Completed(
@@ -301,6 +337,7 @@ internal fun aiAssetDownloadStateFromRecord(
     total: Long?,
     attempt: Long? = null,
     jobId: String? = null,
+    bytesPerSecond: Long? = null,
 ): AiAssetDownloadState {
     val asset = assetName?.let { name ->
         runCatching { AiAsset.valueOf(name) }.getOrNull()
@@ -312,6 +349,7 @@ internal fun aiAssetDownloadStateFromRecord(
             progress = progressFromRecord(progressType, downloaded, total),
             attempt = attempt ?: 0L,
             jobId = jobId.orEmpty(),
+            bytesPerSecond = bytesPerSecond,
         )
 
         STATUS_COMPLETED -> AiAssetDownloadState.Completed(
@@ -378,12 +416,55 @@ private fun androidx.datastore.preferences.core.MutablePreferences.writeProgress
     }
 }
 
+private fun androidx.datastore.preferences.core.MutablePreferences.writeTransferSpeed(
+    statusKey: Preferences.Key<String>,
+    downloadedKey: Preferences.Key<Long>,
+    sampleTimeKey: Preferences.Key<Long>,
+    speedKey: Preferences.Key<Long>,
+    progress: DownloadProgress?,
+) {
+    val downloaded = progress.downloadedBytesOrNull()
+    if (downloaded == null) {
+        clearTransferSpeed(sampleTimeKey, speedKey)
+        return
+    }
+
+    val now = System.currentTimeMillis()
+    val previousDownloaded = this[downloadedKey]
+    val previousSampleTime = this[sampleTimeKey]
+    if (
+        this[statusKey] == STATUS_DOWNLOADING &&
+        previousDownloaded != null &&
+        previousSampleTime != null &&
+        downloaded > previousDownloaded &&
+        now > previousSampleTime
+    ) {
+        val bytesDelta = downloaded - previousDownloaded
+        val millisDelta = now - previousSampleTime
+        this[speedKey] = (bytesDelta * 1_000L / millisDelta).coerceAtLeast(1L)
+    } else if (this[statusKey] != STATUS_DOWNLOADING) {
+        remove(speedKey)
+    }
+    this[sampleTimeKey] = now
+}
+
+private fun DownloadProgress?.downloadedBytesOrNull(): Long? =
+    when (this) {
+        is DownloadProgress.Started -> existing
+        is DownloadProgress.Downloading -> downloaded
+        is DownloadProgress.Completed,
+        is DownloadProgress.Error,
+        null,
+        -> null
+    }
+
 private fun androidx.datastore.preferences.core.MutablePreferences.clearAsset(asset: AiAsset) {
     remove(aiAssetStatusKey(asset))
     remove(aiAssetPathKey(asset))
     remove(aiAssetErrorKey(asset))
     remove(aiAssetAttemptKey(asset))
     remove(aiAssetJobIdKey(asset))
+    clearTransferSpeed(aiAssetSpeedSampleTimeKey(asset), aiAssetSpeedBytesPerSecondKey(asset))
     clearProgress(aiAssetProgressTypeKey(asset), aiAssetDownloadedKey(asset), aiAssetTotalKey(asset))
 }
 
@@ -423,6 +504,12 @@ private fun aiAssetAttemptKey(asset: AiAsset) =
 private fun aiAssetJobIdKey(asset: AiAsset) =
     stringPreferencesKey("ai_asset_${asset.name}_job_id")
 
+private fun aiAssetSpeedSampleTimeKey(asset: AiAsset) =
+    longPreferencesKey("ai_asset_${asset.name}_speed_sample_time")
+
+private fun aiAssetSpeedBytesPerSecondKey(asset: AiAsset) =
+    longPreferencesKey("ai_asset_${asset.name}_speed_bytes_per_second")
+
 private fun aiAssetProgressTypeKey(asset: AiAsset) =
     stringPreferencesKey("ai_asset_${asset.name}_progress_type")
 
@@ -440,6 +527,14 @@ private fun androidx.datastore.preferences.core.MutablePreferences.clearProgress
     remove(typeKey)
     remove(downloadedKey)
     remove(totalKey)
+}
+
+private fun androidx.datastore.preferences.core.MutablePreferences.clearTransferSpeed(
+    sampleTimeKey: Preferences.Key<Long>,
+    speedKey: Preferences.Key<Long>,
+) {
+    remove(sampleTimeKey)
+    remove(speedKey)
 }
 
 private const val DEFAULT_DOWNLOAD_ERROR = "Download failed"

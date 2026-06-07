@@ -7,6 +7,7 @@ sealed class AiAssetDownloadState {
         val progress: DownloadProgress?,
         val attempt: Long = 0L,
         val jobId: String = "",
+        val bytesPerSecond: Long? = null,
     ) : AiAssetDownloadState()
     data class Completed(
         val asset: AiAsset,
