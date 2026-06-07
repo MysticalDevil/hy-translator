@@ -129,6 +129,9 @@ class TranslatorViewModel(
             is TranslatorEvent.LiveTranslateToggled -> onLiveTranslateToggled(event.enabled)
             is TranslatorEvent.VoiceInputToggled -> onVoiceInputToggled(event.enabled)
             is TranslatorEvent.VoiceInputPermissionDenied -> onVoiceInputPermissionDenied(event.message)
+            is TranslatorEvent.NotificationPermissionDenied -> {
+                onNotificationPermissionDenied(event.message, event.aiAsset)
+            }
             is TranslatorEvent.AsrPartialReceived -> onAsrTextReceived(event.text)
             is TranslatorEvent.AsrFinalReceived -> onAsrTextReceived(event.text)
             is TranslatorEvent.RefreshAiAsset -> aiAssetRepository.refresh(event.asset)
@@ -223,6 +226,14 @@ class TranslatorViewModel(
         voiceInputJob = null
         voiceInputRepository.stop()
         _uiState.update { it.copy(voiceInputState = VoiceInputState.Error(message)) }
+    }
+
+    fun onNotificationPermissionDenied(message: String, aiAsset: AiAsset?) {
+        if (aiAsset != null) {
+            setAiAssetState(aiAsset, AiAssetState.Error(message))
+        } else {
+            setModelStatus(ModelStatus.Error(message))
+        }
     }
 
     fun onAsrTextReceived(text: String) {

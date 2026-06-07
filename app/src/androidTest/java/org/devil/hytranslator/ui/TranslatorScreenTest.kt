@@ -144,6 +144,60 @@ class TranslatorScreenTest {
     }
 
     @Test
+    fun translatorScreen_modelErrorShowsRetryMessage() {
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "",
+                    outputText = "",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    asrAssetState = AiAssetState.Ready,
+                    ocrAssetState = AiAssetState.Ready,
+                    modelStatus = ModelStatus.Error("Notifications permission denied"),
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(
+            string(R.string.model_error, "Notifications permission denied"),
+        ).assertExists()
+        composeRule.onNodeWithText(string(R.string.action_retry)).assertExists()
+    }
+
+    @Test
+    fun translatorScreen_assetErrorShowsTargetAssetMessage() {
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "",
+                    outputText = "",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    asrAssetState = AiAssetState.NotDownloaded,
+                    ocrAssetState = AiAssetState.Error("Notifications permission denied"),
+                    modelStatus = ModelStatus.Ready,
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(
+            string(
+                R.string.asset_error,
+                string(R.string.asset_ocr_ppocrv5),
+                "Notifications permission denied",
+            ),
+        ).assertExists()
+        composeRule.onNodeWithTag(TranslatorTestTags.OcrAssetDownload).assertExists()
+    }
+
+    @Test
     fun translatorScreen_assetDownloadStatesRemainIndependent() {
         composeRule.setContent {
             MyApplicationTheme(dynamicColor = false) {

@@ -127,10 +127,12 @@
 - `onSelectModel()` 会取消当前模型下载、停止 ASR runtime，但保留独立的 ASR/OCR
   资源下载；`onClearAllModels()` 会取消模型下载、AI 资源下载和 ASR runtime。
   后续仍要补这些 UI 入口到 service/notification 的真机验收。
-- 还缺少下载恢复、通知权限拒绝、前台服务被系统重启、
+- 还缺少前台服务被系统重启、
   recent task 划掉后的自动化或手动验收用例。
   当前已覆盖 App 启动审计残留 downloading 的基础恢复机制，但还没覆盖真实 service 被系统重启
   或 recent task 划掉时的端到端用户路径。
+  通知权限拒绝现在会阻止下载启动，并把模型或对应 ASR/OCR 资源状态置为可见错误；
+  已新增 ViewModel 单测和 Compose 真机测试覆盖该错误展示，后续仍可补真实系统权限弹窗流程。
 
 ### OCR
 
@@ -424,7 +426,8 @@ DI 默认决策：
     和 tar.gz entry 配置。
 - Compose UI 测试：
   - 已新增 `TranslatorScreenTest` 覆盖主屏空状态、翻译结果状态和模型选择弹窗。
-  - 后续继续补下载进度展示、权限拒绝状态和语言交换。
+  - 已新增通知权限拒绝后的模型/AI 资源错误展示真机 Compose 测试。
+  - 后续继续补下载进度展示和语言交换。
 - OCR workflow 单元测试：
   - 已覆盖 source picker、camera、hide 的状态转换。
   - 后续补相册 URI、bitmap 识别成功和 typed error 路径。

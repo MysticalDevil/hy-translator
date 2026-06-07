@@ -53,6 +53,7 @@ fun TranslatorRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val ocrFailedMessage = stringResource(R.string.ocr_failed)
     val voiceInputPermissionDeniedMessage = stringResource(R.string.voice_input_permission_denied)
+    val notificationPermissionDeniedMessage = stringResource(R.string.notification_permission_denied)
     val ocrWorkflowController = remember(scope) {
         OcrWorkflowController(
             scope = scope,
@@ -87,15 +88,23 @@ fun TranslatorRoute(
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) {
+    ) { granted ->
         val aiAsset = pendingAiAssetDownload
+        val modelDownloadPending = pendingModelDownload
         pendingAiAssetDownload = null
-        if (aiAsset != null) {
-            viewModel.onEvent(TranslatorEvent.DownloadAiAsset(aiAsset))
-        } else if (pendingModelDownload) {
-            viewModel.onEvent(TranslatorEvent.DownloadModel)
-        }
         pendingModelDownload = false
+        if (granted && aiAsset != null) {
+            viewModel.onEvent(TranslatorEvent.DownloadAiAsset(aiAsset))
+        } else if (granted && modelDownloadPending) {
+            viewModel.onEvent(TranslatorEvent.DownloadModel)
+        } else if (aiAsset != null || modelDownloadPending) {
+            viewModel.onEvent(
+                TranslatorEvent.NotificationPermissionDenied(
+                    message = notificationPermissionDeniedMessage,
+                    aiAsset = aiAsset,
+                ),
+            )
+        }
     }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(

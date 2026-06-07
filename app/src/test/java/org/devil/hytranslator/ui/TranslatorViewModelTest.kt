@@ -292,6 +292,41 @@ class TranslatorViewModelTest {
     }
 
     @Test
+    fun notificationPermissionDenied_forModelShowsModelError() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.onEvent(
+            TranslatorEvent.NotificationPermissionDenied(
+                message = "notifications denied",
+                aiAsset = null,
+            ),
+        )
+
+        assertEquals(
+            ModelStatus.Error("notifications denied"),
+            viewModel.uiState.value.modelStatus,
+        )
+    }
+
+    @Test
+    fun notificationPermissionDenied_forAiAssetShowsOnlyTargetAssetError() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.onEvent(
+            TranslatorEvent.NotificationPermissionDenied(
+                message = "notifications denied",
+                aiAsset = AiAsset.OcrPpOcrV5Mobile,
+            ),
+        )
+
+        assertSame(AiAssetState.NotDownloaded, viewModel.uiState.value.asrAssetState)
+        assertEquals(
+            AiAssetState.Error("notifications denied"),
+            viewModel.uiState.value.ocrAssetState,
+        )
+    }
+
+    @Test
     fun refreshAiAsset_routesToAssetRepository() = runTest {
         val aiAssetRepository = FakeAiAssetRepository()
         val viewModel = createViewModel(aiAssetRepository = aiAssetRepository)
