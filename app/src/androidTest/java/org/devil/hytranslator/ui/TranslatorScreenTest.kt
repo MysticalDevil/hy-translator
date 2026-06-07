@@ -266,6 +266,59 @@ class TranslatorScreenTest {
     }
 
     @Test
+    fun translatorScreen_inputToolbarUsesIdleAndLiveEnabledIcons() {
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "hello",
+                    outputText = "bonjour",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = true,
+                    asrAssetState = AiAssetState.Ready,
+                    ocrAssetState = AiAssetState.Ready,
+                    modelStatus = ModelStatus.Ready,
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(TranslatorTestTags.VoiceInputIdleIcon, useUnmergedTree = true)
+            .assertExists()
+        composeRule.onNodeWithTag(TranslatorTestTags.LiveTranslateEnabledIcon, useUnmergedTree = true)
+            .assertExists()
+        composeRule.onNodeWithContentDescription(string(R.string.cd_ocr_button))
+            .assertExists()
+    }
+
+    @Test
+    fun translatorScreen_inputToolbarUsesListeningAndLiveDisabledIcons() {
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "hello",
+                    outputText = "bonjour",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    voiceInputState = VoiceInputState.Listening,
+                    asrAssetState = AiAssetState.Ready,
+                    ocrAssetState = AiAssetState.Ready,
+                    modelStatus = ModelStatus.Ready,
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(TranslatorTestTags.VoiceInputListeningIcon, useUnmergedTree = true)
+            .assertExists()
+        composeRule.onNodeWithTag(TranslatorTestTags.LiveTranslateDisabledIcon, useUnmergedTree = true)
+            .assertExists()
+    }
+
+    @Test
     fun translatorScreen_languageSwapButtonEmitsCallback() {
         var swapRequests = 0
         composeRule.setContent {

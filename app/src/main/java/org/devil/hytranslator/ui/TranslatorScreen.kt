@@ -543,7 +543,15 @@ private fun InputArea(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(
                                 alpha = if (asrReady) 1f else 0.62f,
                             ),
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier
+                                .size(20.dp)
+                                .testTag(
+                                    if (isVoiceInputListening) {
+                                        TranslatorTestTags.VoiceInputListeningIcon
+                                    } else {
+                                        TranslatorTestTags.VoiceInputIdleIcon
+                                    },
+                                ),
                         )
                     }
                     Spacer(Modifier.width(4.dp))
@@ -566,7 +574,15 @@ private fun InputArea(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(
                                 alpha = if (modelReady) 1f else 0.38f,
                             ),
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier
+                                .size(20.dp)
+                                .testTag(
+                                    if (isLiveTranslateEnabled) {
+                                        TranslatorTestTags.LiveTranslateEnabledIcon
+                                    } else {
+                                        TranslatorTestTags.LiveTranslateDisabledIcon
+                                    },
+                                ),
                         )
                     }
                     Spacer(Modifier.width(4.dp))

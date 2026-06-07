@@ -15,4 +15,8 @@ object TranslatorTestTags {
     const val OcrAssetCancel = "ocr_asset_cancel"
     const val ModelDownloadProgress = "model_download_progress"
     const val ModelDownloadCancel = "model_download_cancel"
+    const val VoiceInputListeningIcon = "voice_input_listening_icon"
+    const val VoiceInputIdleIcon = "voice_input_idle_icon"
+    const val LiveTranslateEnabledIcon = "live_translate_enabled_icon"
+    const val LiveTranslateDisabledIcon = "live_translate_disabled_icon"
 }
