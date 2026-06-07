@@ -109,6 +109,7 @@ class ModelDownloader private constructor(
                 return@flow
             }
 
+            coroutineContext.ensureActive()
             if (!tmpFile.renameTo(modelFile)) {
                 emit(DownloadProgress.Error("Cannot finalize download"))
                 return@flow

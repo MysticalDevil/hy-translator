@@ -76,6 +76,7 @@ internal class AiAssetFileDownloader(
                 }
             }
 
+            coroutineContext.ensureActive()
             when (val source = fileSpec.source) {
                 is AiAssetFileSource.Direct -> {
                     if (!moveDownloadedFile(downloadFile, finalFile, fileSpec)) {

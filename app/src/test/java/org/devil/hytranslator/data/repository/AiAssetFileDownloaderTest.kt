@@ -2,16 +2,19 @@ package org.devil.hytranslator.data.repository
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.devil.hytranslator.domain.model.DownloadProgress
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
+import java.io.IOException
 import java.net.InetSocketAddress
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
@@ -104,6 +107,29 @@ class AiAssetFileDownloaderTest {
         }
     }
 
+    @Test
+    fun downloadFile_whenCollectorCancels_doesNotFinalizePartialFile() = runTest {
+        val fileSpec = AiAssetFileSpec(
+            name = "encoder.onnx",
+            minBytes = PARTIAL_CANCEL_BYTES.toLong(),
+            source = AiAssetFileSource.Direct(urlResId = 0),
+        )
+        LocalHttpServer { exchange ->
+            exchange.respondSlowly(status = 200, body = ByteArray(PARTIAL_CANCEL_BYTES) { 1 })
+        }.use { server ->
+            val dir = temporaryFolder.newFolder("asset")
+
+            val progress = AiAssetFileDownloader()
+                .downloadFile(dir = dir, fileSpec = fileSpec, url = server.baseUrl)
+                .take(2)
+                .toList()
+
+            assertTrue(progress.first() is DownloadProgress.Started)
+            assertTrue(progress.last() is DownloadProgress.Downloading)
+            assertFalse(java.io.File(dir, fileSpec.name).exists())
+        }
+    }
+
     private class LocalHttpServer(
         handler: (HttpExchange) -> Unit,
     ) : Closeable {
@@ -129,10 +155,27 @@ class AiAssetFileDownloaderTest {
         const val DIRECT_TEXT = "abcdef"
         const val TAR_ENTRY_TEXT = "ocr-model"
         const val TAR_BLOCK_SIZE = 512
+        const val PARTIAL_CANCEL_BYTES = 32 * 1024
+        const val SLOW_FIRST_CHUNK_BYTES = 8 * 1024
+        const val SLOW_RESPONSE_DELAY_MS = 500L
 
         fun HttpExchange.respond(status: Int, body: ByteArray) {
             sendResponseHeaders(status, body.size.toLong())
             responseBody.use { output -> output.write(body) }
+        }
+
+        fun HttpExchange.respondSlowly(status: Int, body: ByteArray) {
+            sendResponseHeaders(status, body.size.toLong())
+            responseBody.use { output ->
+                output.write(body, 0, SLOW_FIRST_CHUNK_BYTES)
+                output.flush()
+                Thread.sleep(SLOW_RESPONSE_DELAY_MS)
+                try {
+                    output.write(body, SLOW_FIRST_CHUNK_BYTES, body.size - SLOW_FIRST_CHUNK_BYTES)
+                } catch (_: IOException) {
+                    // The cancellation test closes the client after the first chunk.
+                }
+            }
         }
 
         fun tarGz(entryName: String, body: String): ByteArray {

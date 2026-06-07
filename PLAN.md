@@ -411,9 +411,11 @@ DI 默认决策：
     已新增 `ModelDownloader` 本地 HTTP JVM 测试，覆盖下载成功、HTTP error 和 Range 续传；
     已新增 `AiAssetFileDownloader` 本地 HTTP JVM 测试，覆盖 direct 文件下载、tar.gz entry
     解包和 Range 续传；
+    已新增 `ModelDownloader` 和 `AiAssetFileDownloader` 取消测试，覆盖下载中取消不会
+    finalize 部分文件；
     已新增 service notification cancel action 的真机 instrumentation 测试；
     已新增下载恢复 audit 的真机 instrumentation 测试；
-    后续还需补下载取消、retry action 和真实 service/recent task 恢复测试。
+    后续还需补 retry action 和真实 service/recent task 恢复测试。
   - 已新增 AI asset spec JVM 测试，覆盖 OCR PP-OCRv5 mobile 必需文件、URL resource
     和 tar.gz entry 配置。
 - Compose UI 测试：

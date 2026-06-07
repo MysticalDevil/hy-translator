@@ -2,15 +2,18 @@ package org.devil.hytranslator.service
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.devil.hytranslator.domain.model.DownloadProgress
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.Closeable
+import java.io.IOException
 import java.net.InetSocketAddress
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
@@ -85,6 +88,26 @@ class ModelDownloaderTest {
         }
     }
 
+    @Test
+    fun download_whenCollectorCancels_doesNotFinalizePartialFile() = runTest {
+        LocalHttpServer { exchange ->
+            exchange.respondSlowly(status = 200, body = ByteArray(PARTIAL_CANCEL_BYTES) { 1 })
+        }.use { server ->
+            val modelDir = temporaryFolder.newFolder("models")
+            val downloader = ModelDownloader(
+                modelDir = modelDir,
+                baseUrl = server.baseUrl,
+                filename = MODEL_NAME,
+            )
+
+            val progress = downloader.download().take(2).toList()
+
+            assertTrue(progress.first() is DownloadProgress.Started)
+            assertTrue(progress.last() is DownloadProgress.Downloading)
+            assertFalse(java.io.File(downloader.getModelPath()).exists())
+        }
+    }
+
     private class LocalHttpServer(
         handler: (HttpExchange) -> Unit,
     ) : Closeable {
@@ -109,11 +132,29 @@ class ModelDownloaderTest {
     private companion object {
         const val MODEL_NAME = "model.gguf"
         const val MODEL_TEXT = "abcdef"
+        const val PARTIAL_CANCEL_BYTES = 32 * 1024
         val MODEL_BYTES = MODEL_TEXT.toByteArray()
 
         fun HttpExchange.respond(status: Int, body: ByteArray) {
             sendResponseHeaders(status, body.size.toLong())
             responseBody.use { output -> output.write(body) }
         }
+
+        fun HttpExchange.respondSlowly(status: Int, body: ByteArray) {
+            sendResponseHeaders(status, body.size.toLong())
+            responseBody.use { output ->
+                output.write(body, 0, SLOW_FIRST_CHUNK_BYTES)
+                output.flush()
+                Thread.sleep(SLOW_RESPONSE_DELAY_MS)
+                try {
+                    output.write(body, SLOW_FIRST_CHUNK_BYTES, body.size - SLOW_FIRST_CHUNK_BYTES)
+                } catch (_: IOException) {
+                    // The cancellation test closes the client after the first chunk.
+                }
+            }
+        }
+
+        const val SLOW_FIRST_CHUNK_BYTES = 8 * 1024
+        const val SLOW_RESPONSE_DELAY_MS = 500L
     }
 }
