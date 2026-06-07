@@ -136,9 +136,11 @@ class TranslatorViewModel(
             is TranslatorEvent.AsrFinalReceived -> onAsrTextReceived(event.text)
             is TranslatorEvent.RefreshAiAsset -> aiAssetRepository.refresh(event.asset)
             is TranslatorEvent.DownloadAiAsset -> onDownloadAiAsset(event.asset)
+            is TranslatorEvent.CancelAiAssetDownload -> onCancelAiAssetDownload(event.asset)
             TranslatorEvent.Translate -> onTranslate()
             TranslatorEvent.CancelTranslation -> onCancel()
             TranslatorEvent.DownloadModel -> onDownload()
+            TranslatorEvent.CancelModelDownload -> onCancelModelDownload()
             TranslatorEvent.ClearAllModels -> onClearAllModels()
             TranslatorEvent.SwapLanguages -> onSwapLanguages()
         }
@@ -246,6 +248,11 @@ class TranslatorViewModel(
         aiAssetDownloadController.start(asset)
     }
 
+    fun onCancelAiAssetDownload(asset: AiAsset) {
+        aiAssetDownloadController.cancel(asset)
+        setAiAssetState(asset, AiAssetState.NotDownloaded)
+    }
+
     fun onSelectModel(model: ModelOption) {
         if (model.key == _uiState.value.selectedModel.key) return
 
@@ -282,6 +289,16 @@ class TranslatorViewModel(
         }
         observeDownloadService()
         modelDownloadController.start(_uiState.value.selectedModel)
+    }
+
+    fun onCancelModelDownload() {
+        modelDownloadController.cancel()
+        _uiState.update {
+            it.copy(
+                modelStatus = ModelStatus.NotDownloaded,
+                downloadProgress = null,
+            )
+        }
     }
 
     fun onClearAllModels() {

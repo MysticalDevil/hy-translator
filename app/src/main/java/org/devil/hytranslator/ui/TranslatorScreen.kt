@@ -119,6 +119,7 @@ fun TranslatorScreen(
     highlightedAiAsset: AiAsset? = null,
     onVoiceInputToggle: (Boolean) -> Unit,
     onDownloadAiAsset: (AiAsset) -> Unit,
+    onCancelAiAssetDownload: (AiAsset) -> Unit,
     onStartOcr: () -> Unit,
     onOcrBitmapCaptured: (Bitmap) -> Unit,
     onOcrDismiss: () -> Unit,
@@ -131,6 +132,7 @@ fun TranslatorScreen(
     selectedModel: ModelOption,
     onSwitchModel: () -> Unit,
     onDownload: () -> Unit,
+    onCancelDownload: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -223,6 +225,7 @@ fun TranslatorScreen(
                     ocrAssetState = ocrAssetState,
                     highlightedAiAsset = highlightedAiAsset,
                     onDownloadAiAsset = onDownloadAiAsset,
+                    onCancelAiAssetDownload = onCancelAiAssetDownload,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
 
@@ -273,6 +276,7 @@ fun TranslatorScreen(
                     selectedModel = selectedModel,
                     onSwitchModel = onSwitchModel,
                     onDownload = onDownload,
+                    onCancelDownload = onCancelDownload,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
@@ -636,6 +640,7 @@ private fun AiAssetStatusMessages(
     ocrAssetState: AiAssetState,
     highlightedAiAsset: AiAsset?,
     onDownloadAiAsset: (AiAsset) -> Unit,
+    onCancelAiAssetDownload: (AiAsset) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val visibleStates = listOf(
@@ -655,6 +660,7 @@ private fun AiAssetStatusMessages(
                 state = state,
                 highlighted = asset == highlightedAiAsset,
                 onDownload = { onDownloadAiAsset(asset) },
+                onCancelDownload = { onCancelAiAssetDownload(asset) },
             )
         }
     }
@@ -666,6 +672,7 @@ private fun AiAssetStatusRow(
     state: AiAssetState,
     highlighted: Boolean,
     onDownload: () -> Unit,
+    onCancelDownload: () -> Unit,
 ) {
     val assetName = when (asset) {
         AiAsset.AsrStreamingZipformer -> stringResource(R.string.asset_asr_zipformer)
@@ -714,7 +721,14 @@ private fun AiAssetStatusRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
-                if (state !is AiAssetState.Downloading) {
+                if (state is AiAssetState.Downloading) {
+                    TextButton(
+                        onClick = onCancelDownload,
+                        modifier = Modifier.testTag(asset.cancelTag),
+                    ) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                } else {
                     TextButton(
                         onClick = onDownload,
                         modifier = Modifier.testTag(asset.downloadTag),
@@ -747,6 +761,12 @@ private val AiAsset.downloadTag: String
     get() = when (this) {
         AiAsset.AsrStreamingZipformer -> TranslatorTestTags.AsrAssetDownload
         AiAsset.OcrPpOcrV5Mobile -> TranslatorTestTags.OcrAssetDownload
+    }
+
+private val AiAsset.cancelTag: String
+    get() = when (this) {
+        AiAsset.AsrStreamingZipformer -> TranslatorTestTags.AsrAssetCancel
+        AiAsset.OcrPpOcrV5Mobile -> TranslatorTestTags.OcrAssetCancel
     }
 
 private val AiAsset.highlightedStatusTag: String
@@ -879,6 +899,7 @@ private fun StatusBanner(
     selectedModel: ModelOption,
     onSwitchModel: () -> Unit,
     onDownload: () -> Unit,
+    onCancelDownload: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -958,6 +979,15 @@ private fun StatusBanner(
                         color = MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.surface,
                     )
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(
+                        onClick = onCancelDownload,
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .testTag(TranslatorTestTags.ModelDownloadCancel),
+                    ) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
                 }
 
                 is ModelStatus.Loading -> {

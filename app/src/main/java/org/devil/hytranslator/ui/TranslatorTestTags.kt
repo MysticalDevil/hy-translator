@@ -8,4 +8,7 @@ object TranslatorTestTags {
     const val OcrAssetHighlighted = "ocr_asset_highlighted"
     const val AsrAssetDownload = "asr_asset_download"
     const val OcrAssetDownload = "ocr_asset_download"
+    const val AsrAssetCancel = "asr_asset_cancel"
+    const val OcrAssetCancel = "ocr_asset_cancel"
+    const val ModelDownloadCancel = "model_download_cancel"
 }

@@ -118,8 +118,10 @@
   retry/cancel/content intent 的 action、component 和 extras。后续还缺滚动定位、真实 retry
   端到端和 service 级完成/失败态测试。
 - UI 取消、通知取消、模型切换、清理资源和 service 自身失败之间还没有完整双向绑定；
-  `TranslatorViewModel` 已收集持久化下载状态并按 AI asset 分别映射 UI 状态，但模型下载完成后的
-  自动加载语义仍依赖 App 进程存活。
+  `TranslatorViewModel` 已收集持久化下载状态并按 AI asset 分别映射 UI 状态；主界面已新增
+  模型下载取消按钮，以及 ASR/OCR 资源下载中的独立取消按钮，UI 事件会调用对应 controller 并
+  只重置目标状态，已有 ViewModel 单测和真机 Compose 测试覆盖。模型下载完成后的自动加载语义
+  仍依赖 App 进程存活。
 - 模型下载完成后由 service 持久化 Completed 并显示明确的下载完成通知；ViewModel 在 App
   存活或下次启动观察到 Completed 后加载模型并补发完成通知；已新增 ViewModel 单元测试覆盖
   Completed 加载、重复 Completed 去重和 Error 状态显示。后续仍要补进程死亡恢复验收，
@@ -157,7 +159,8 @@
   unclip/rotated crop、更精确文本框排序、typed error 收敛。
 - 已新增标准图片 smoke 入口：`scripts/download-ocr-smoke-images.sh` 下载 PaddleOCR/PaddleX
   demo 图片，`PaddleLiteOcrSmokeTest` 可在设备已有 OCR 模型资源时把标准图片喂给
-  Paddle Lite PP-OCRv5 mobile recognition runtime 做真机 smoke。大规模标准回归数据源
+  Paddle Lite PP-OCRv5 mobile det + rec runtime 做真机 smoke；模型未下载时测试显式 skip。
+  OCR 和 ASR 一样保留“小样本 smoke + 大规模标准数据离线回归”的结构。大规模标准回归数据源
   记录在 `docs/ocr-smoke-data.md`，包括 ICDAR 2015、COCO-Text 和 PaddleOCR dataset index。
 
 ### ASR

@@ -233,6 +233,9 @@ fun TranslatorRoute(
             }
         },
         onDownloadAiAsset = startAiAssetDownload,
+        onCancelAiAssetDownload = { asset ->
+            viewModel.onEvent(TranslatorEvent.CancelAiAssetDownload(asset))
+        },
         onStartOcr = {
             if (uiState.ocrAssetState is AiAssetState.Ready) {
                 ocrWorkflowController.showSourcePicker()
@@ -256,6 +259,9 @@ fun TranslatorRoute(
         selectedModel = uiState.selectedModel,
         onSwitchModel = { showModelPicker = true },
         onDownload = startDownload,
+        onCancelDownload = {
+            viewModel.onEvent(TranslatorEvent.CancelModelDownload)
+        },
         modifier = modifier.systemBarsPadding(),
     )
 }

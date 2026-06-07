@@ -394,6 +394,35 @@ class TranslatorViewModelTest {
     }
 
     @Test
+    fun cancelAiAssetDownload_cancelsTargetAssetAndResetsOnlyTargetState() = runTest {
+        val aiAssetDownloadActions = FakeAiAssetDownloadActions()
+        val viewModel = createViewModel(aiAssetDownloadActions = aiAssetDownloadActions)
+
+        viewModel.initialize()
+        advanceUntilIdle()
+        aiAssetDownloadActions.mutableState(AiAsset.AsrStreamingZipformer).value =
+            AiAssetDownloadState.Downloading(
+                asset = AiAsset.AsrStreamingZipformer,
+                progress = DownloadProgress.Downloading(downloaded = 10L, total = 100L),
+            )
+        aiAssetDownloadActions.mutableState(AiAsset.OcrPpOcrV5Mobile).value =
+            AiAssetDownloadState.Downloading(
+                asset = AiAsset.OcrPpOcrV5Mobile,
+                progress = DownloadProgress.Downloading(downloaded = 50L, total = 100L),
+            )
+        advanceUntilIdle()
+
+        viewModel.onEvent(TranslatorEvent.CancelAiAssetDownload(AiAsset.OcrPpOcrV5Mobile))
+
+        assertEquals(AiAsset.OcrPpOcrV5Mobile, aiAssetDownloadActions.cancelledAsset)
+        assertEquals(
+            AiAssetState.Downloading(DownloadProgress.Downloading(downloaded = 10L, total = 100L)),
+            viewModel.uiState.value.asrAssetState,
+        )
+        assertSame(AiAssetState.NotDownloaded, viewModel.uiState.value.ocrAssetState)
+    }
+
+    @Test
     fun asrPartial_updatesInputAndTriggersLiveTranslate() = runTest {
         val translatorRepository = FakeTranslatorRepository(
             isReady = true,
@@ -432,6 +461,21 @@ class TranslatorViewModelTest {
         assertSame(ModelStatus.Downloading, viewModel.modelStatus.value)
         assertSame(ModelStatus.Downloading, viewModel.uiState.value.modelStatus)
         assertEquals(modelRepository.currentModel, downloadActions.startedModel)
+    }
+
+    @Test
+    fun cancelModelDownload_cancelsControllerAndResetsModelState() = runTest {
+        val downloadActions = FakeModelDownloadActions()
+        val viewModel = createViewModel(downloadActions = downloadActions)
+
+        viewModel.onDownload()
+        advanceUntilIdle()
+        viewModel.onEvent(TranslatorEvent.CancelModelDownload)
+
+        assertTrue(downloadActions.cancelled)
+        assertSame(ModelStatus.NotDownloaded, viewModel.modelStatus.value)
+        assertSame(ModelStatus.NotDownloaded, viewModel.uiState.value.modelStatus)
+        assertEquals(null, viewModel.uiState.value.downloadProgress)
     }
 
     @Test

@@ -20,9 +20,11 @@ sealed interface TranslatorEvent {
     data class AsrFinalReceived(val text: String) : TranslatorEvent
     data class RefreshAiAsset(val asset: AiAsset) : TranslatorEvent
     data class DownloadAiAsset(val asset: AiAsset) : TranslatorEvent
+    data class CancelAiAssetDownload(val asset: AiAsset) : TranslatorEvent
     data object Translate : TranslatorEvent
     data object CancelTranslation : TranslatorEvent
     data object DownloadModel : TranslatorEvent
+    data object CancelModelDownload : TranslatorEvent
     data object ClearAllModels : TranslatorEvent
     data object SwapLanguages : TranslatorEvent
 }

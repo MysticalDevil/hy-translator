@@ -264,6 +264,68 @@ class TranslatorScreenTest {
     }
 
     @Test
+    fun translatorScreen_assetDownloadCancelButtonsEmitMatchingAsset() {
+        val cancelledAssets = mutableListOf<AiAsset>()
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "",
+                    outputText = "",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    asrAssetState = AiAssetState.Downloading(null),
+                    ocrAssetState = AiAssetState.Downloading(null),
+                    modelStatus = ModelStatus.Ready,
+                    onCancelAiAssetDownload = cancelledAssets::add,
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(TranslatorTestTags.AsrAssetCancel)
+            .performClick()
+        composeRule.onNodeWithTag(TranslatorTestTags.OcrAssetCancel)
+            .performClick()
+
+        org.junit.Assert.assertEquals(
+            listOf(
+                AiAsset.AsrStreamingZipformer,
+                AiAsset.OcrPpOcrV5Mobile,
+            ),
+            cancelledAssets,
+        )
+    }
+
+    @Test
+    fun translatorScreen_modelDownloadingCancelEmitsCallback() {
+        var cancelRequests = 0
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "",
+                    outputText = "",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    asrAssetState = AiAssetState.Ready,
+                    ocrAssetState = AiAssetState.Ready,
+                    modelStatus = ModelStatus.Downloading,
+                    onCancelDownload = { cancelRequests += 1 },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(TranslatorTestTags.ModelDownloadCancel)
+            .performClick()
+
+        org.junit.Assert.assertEquals(1, cancelRequests)
+    }
+
+    @Test
     fun translatorScreen_highlightsNotificationTargetAsset() {
         composeRule.setContent {
             MyApplicationTheme(dynamicColor = false) {
@@ -307,6 +369,8 @@ class TranslatorScreenTest {
         highlightedAiAsset: AiAsset? = null,
         modelStatus: ModelStatus,
         onDownloadAiAsset: (AiAsset) -> Unit = {},
+        onCancelAiAssetDownload: (AiAsset) -> Unit = {},
+        onCancelDownload: () -> Unit = {},
     ) {
         TranslatorScreen(
             inputText = inputText,
@@ -332,6 +396,7 @@ class TranslatorScreenTest {
             highlightedAiAsset = highlightedAiAsset,
             onVoiceInputToggle = {},
             onDownloadAiAsset = onDownloadAiAsset,
+            onCancelAiAssetDownload = onCancelAiAssetDownload,
             onStartOcr = {},
             onOcrBitmapCaptured = {},
             onOcrDismiss = {},
@@ -344,6 +409,7 @@ class TranslatorScreenTest {
             selectedModel = q4Model,
             onSwitchModel = {},
             onDownload = {},
+            onCancelDownload = onCancelDownload,
         )
     }
 
