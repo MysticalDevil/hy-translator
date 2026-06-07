@@ -12,6 +12,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.devil.hytranslator.R
 import org.devil.hytranslator.domain.model.AiAsset
 import org.devil.hytranslator.domain.model.AiAssetState
+import org.devil.hytranslator.domain.model.DownloadProgress
 import org.devil.hytranslator.domain.model.Language
 import org.devil.hytranslator.domain.model.ModelOption
 import org.devil.hytranslator.domain.model.ModelStatus
@@ -229,6 +230,69 @@ class TranslatorScreenTest {
     }
 
     @Test
+    fun translatorScreen_downloadProgressDisplaysMeasuredSizes() {
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "",
+                    outputText = "",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    asrAssetState = AiAssetState.Downloading(
+                        DownloadProgress.Downloading(
+                            downloaded = 25_000_000L,
+                            total = 100_000_000L,
+                        ),
+                    ),
+                    ocrAssetState = AiAssetState.NotDownloaded,
+                    modelStatus = ModelStatus.Downloading,
+                    downloadProgress = DownloadProgress.Downloading(
+                        downloaded = 500_000_000L,
+                        total = 1_500_000_000L,
+                    ),
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(string(R.string.model_downloading, 500.0f, 1500.0f))
+            .assertExists()
+        composeRule.onNodeWithTag(TranslatorTestTags.ModelDownloadProgress)
+            .assertExists()
+        composeRule.onNodeWithTag(TranslatorTestTags.AsrAssetProgress)
+            .assertExists()
+    }
+
+    @Test
+    fun translatorScreen_languageSwapButtonEmitsCallback() {
+        var swapRequests = 0
+        composeRule.setContent {
+            MyApplicationTheme(dynamicColor = false) {
+                TestTranslatorScreen(
+                    inputText = "",
+                    outputText = "",
+                    sourceLang = english,
+                    targetLang = french,
+                    isSwapEnabled = true,
+                    isTranslating = false,
+                    isLiveTranslateEnabled = false,
+                    asrAssetState = AiAssetState.Ready,
+                    ocrAssetState = AiAssetState.Ready,
+                    modelStatus = ModelStatus.Ready,
+                    onSwapLanguages = { swapRequests += 1 },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(TranslatorTestTags.LanguageSwap)
+            .performClick()
+
+        org.junit.Assert.assertEquals(1, swapRequests)
+    }
+
+    @Test
     fun translatorScreen_assetDownloadButtonsEmitMatchingAsset() {
         val requestedAssets = mutableListOf<AiAsset>()
         composeRule.setContent {
@@ -368,6 +432,8 @@ class TranslatorScreenTest {
         ocrAssetState: AiAssetState,
         highlightedAiAsset: AiAsset? = null,
         modelStatus: ModelStatus,
+        downloadProgress: DownloadProgress? = null,
+        onSwapLanguages: () -> Unit = {},
         onDownloadAiAsset: (AiAsset) -> Unit = {},
         onCancelAiAssetDownload: (AiAsset) -> Unit = {},
         onCancelDownload: () -> Unit = {},
@@ -383,7 +449,7 @@ class TranslatorScreenTest {
             targetLanguages = targetLanguages,
             onTargetLangChange = {},
             isSwapEnabled = isSwapEnabled,
-            onSwapLanguages = {},
+            onSwapLanguages = onSwapLanguages,
             onTranslate = {},
             onCancel = {},
             isTranslating = isTranslating,
@@ -405,7 +471,7 @@ class TranslatorScreenTest {
             onOcrTextConfirm = {},
             onOcrRetry = {},
             modelStatus = modelStatus,
-            downloadProgress = null,
+            downloadProgress = downloadProgress,
             selectedModel = q4Model,
             onSwitchModel = {},
             onDownload = {},

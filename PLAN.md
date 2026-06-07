@@ -449,7 +449,7 @@ DI 默认决策：
 - Compose UI 测试：
   - 已新增 `TranslatorScreenTest` 覆盖主屏空状态、翻译结果状态和模型选择弹窗。
   - 已新增通知权限拒绝后的模型/AI 资源错误展示真机 Compose 测试。
-  - 后续继续补下载进度展示和语言交换。
+  - 已新增下载进度展示、模型/AI 资源进度条和语言交换按钮回调的真机 Compose 测试。
 - OCR workflow 单元测试：
   - 已覆盖 source picker、camera、hide 的状态转换。
   - 后续补相册 URI、bitmap 识别成功和 typed error 路径。

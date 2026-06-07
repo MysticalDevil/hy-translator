@@ -357,6 +357,7 @@ private fun LanguageBar(
             enabled = swapEnabled,
             modifier = Modifier
                 .size(40.dp)
+                .testTag(TranslatorTestTags.LanguageSwap)
                 .graphicsLayer { rotationZ = animatedRotation },
         ) {
             Icon(
@@ -742,10 +743,16 @@ private fun AiAssetStatusRow(
             if (progress is DownloadProgress.Downloading && progress.total > 0L) {
                 LinearProgressIndicator(
                     progress = { progress.downloaded.toFloat() / progress.total.toFloat() },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(asset.progressTag),
                 )
             } else if (state is AiAssetState.Downloading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(asset.progressTag),
+                )
             }
         }
     }
@@ -767,6 +774,12 @@ private val AiAsset.cancelTag: String
     get() = when (this) {
         AiAsset.AsrStreamingZipformer -> TranslatorTestTags.AsrAssetCancel
         AiAsset.OcrPpOcrV5Mobile -> TranslatorTestTags.OcrAssetCancel
+    }
+
+private val AiAsset.progressTag: String
+    get() = when (this) {
+        AiAsset.AsrStreamingZipformer -> TranslatorTestTags.AsrAssetProgress
+        AiAsset.OcrPpOcrV5Mobile -> TranslatorTestTags.OcrAssetProgress
     }
 
 private val AiAsset.highlightedStatusTag: String
@@ -975,7 +988,9 @@ private fun StatusBanner(
                     Spacer(Modifier.height(8.dp))
                     LinearProgressIndicator(
                         progress = { progress.coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag(TranslatorTestTags.ModelDownloadProgress),
                         color = MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.surface,
                     )
