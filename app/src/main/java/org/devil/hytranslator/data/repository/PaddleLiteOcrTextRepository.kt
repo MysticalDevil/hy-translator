@@ -179,10 +179,11 @@ class PaddleLiteOcrSession(
     }
 
     private fun Bitmap.crop(box: PaddleOcrTextBox): Bitmap {
-        val left = box.left.coerceIn(0, width - 1)
-        val top = box.top.coerceIn(0, height - 1)
-        val right = box.right.coerceIn(left + 1, width)
-        val bottom = box.bottom.coerceIn(top + 1, height)
+        val paddedBox = box.expandForRecognition(sourceWidth = width, sourceHeight = height)
+        val left = paddedBox.left.coerceIn(0, width - 1)
+        val top = paddedBox.top.coerceIn(0, height - 1)
+        val right = paddedBox.right.coerceIn(left + 1, width)
+        val bottom = paddedBox.bottom.coerceIn(top + 1, height)
         return Bitmap.createBitmap(this, left, top, right - left, bottom - top)
     }
 }
@@ -394,6 +395,34 @@ data class PaddleOcrTextBox(
     val width: Int get() = right - left
     val height: Int get() = bottom - top
     val area: Int get() = width * height
+
+    fun expandForRecognition(
+        sourceWidth: Int,
+        sourceHeight: Int,
+        horizontalRatio: Float = DEFAULT_RECOGNITION_HORIZONTAL_PADDING_RATIO,
+        verticalRatio: Float = DEFAULT_RECOGNITION_VERTICAL_PADDING_RATIO,
+    ): PaddleOcrTextBox {
+        require(sourceWidth > 0 && sourceHeight > 0) {
+            "PaddleOCR crop source size must be positive"
+        }
+        require(horizontalRatio >= 0f && verticalRatio >= 0f) {
+            "PaddleOCR crop padding ratio must be non-negative"
+        }
+
+        val horizontalPadding = (width * horizontalRatio).roundToInt().coerceAtLeast(2)
+        val verticalPadding = (height * verticalRatio).roundToInt().coerceAtLeast(2)
+        return copy(
+            left = (left - horizontalPadding).coerceAtLeast(0),
+            top = (top - verticalPadding).coerceAtLeast(0),
+            right = (right + horizontalPadding).coerceAtMost(sourceWidth),
+            bottom = (bottom + verticalPadding).coerceAtMost(sourceHeight),
+        )
+    }
+
+    private companion object {
+        const val DEFAULT_RECOGNITION_HORIZONTAL_PADDING_RATIO = 0.08f
+        const val DEFAULT_RECOGNITION_VERTICAL_PADDING_RATIO = 0.15f
+    }
 }
 
 object PaddleOcrDetectionPostprocessor {

@@ -29,18 +29,36 @@
 2. **OCR 真正切换到 PaddleOCR PP-OCRv5 mobile**
    - 当前 OCR production adapter 已切到 Paddle Lite/PaddleOCR 边界。
    - 必须接入 PP-OCRv5 mobile det + rec + `ppocr_keys_ocrv5.txt`。
+   - App 语言范围收敛为简体中文、繁体中文、英文、日文、阿拉伯文、俄文、葡萄牙文、
+     德文、韩文；OCR 不能用单个 PP-OCRv5 mobile rec 模型暗示覆盖全部语言。
+   - 当前 `PP-OCRv5_mobile_rec.nb` 优先覆盖中/英/日/繁中识别；阿拉伯文、俄文、
+     葡萄牙文、德文、韩文需要后续追加对应 PaddleOCR multilingual recognition
+     模型和字典，并在识别入口按源语言或自动检测结果选择 rec session。
    - OCR 模型资源必须按需下载、校验、加载，不打包进 APK。
    - 相机/相册 OCR smoke path 要在真机验证。
 
 3. **ASR 真正接入 sherpa-onnx streaming Zipformer**
    - 当前 `VoiceInputRepository` 已接入 sherpa-onnx streaming Zipformer 和 `AudioRecord`。
    - 必须接入 sherpa-onnx streaming Zipformer runtime、JNI/native libs 和 `AudioRecord` 采集。
+   - 当前 sherpa-onnx streaming Zipformer 资产只声明支持中文和英文；ASR 层中文不区分
+     简体/繁体，统一输出中文文本，简繁转换/目标书写形式属于翻译或文本后处理层。
+   - 日文、阿拉伯文、俄文、葡萄牙文、德文、韩文 ASR 不应在 UI/文档中声明已完成，
+     除非后续新增对应多语或单语 ASR 模型资产、下载校验和 smoke 测试。
    - partial/final result 要实时写入输入框，并能配合实时翻译开关触发输出。
    - `RECORD_AUDIO` 权限和监听状态必须进入统一 UI state。
 
 4. **端到端可用性验收**
    - 每个核心流程完成后都要 build、安装到真机、跑 connected tests 或等价 `adb am instrument`。
    - 最终收尾必须包含 debug APK 构建、真机部署、自动 UI/UX 验证和截图/布局树检查。
+
+当前不实现但保留长期扩展计划的语言：
+
+- 法语、西班牙语、土耳其语、泰语、意大利语、越南语、马来语、印尼语、菲律宾语、
+  印地语、波兰语、捷克语、荷兰语、高棉语、缅甸语、波斯语、古吉拉特语、乌尔都语、
+  泰卢固语、马拉地语、希伯来语、孟加拉语、泰米尔语、乌克兰语。
+- 这些语言本轮不出现在语言选择 UI，不配置 OCR/ASR asset，不做下载、通知或 smoke 测试。
+- 后续扩展必须按“语言进入 UI 前先完成模型资产、校验、真实 smoke 和文档”的顺序推进，
+  避免产品层面宣称支持但 runtime 实际不可用。
 
 低优先级直到上述完成前不得抢占：
 
@@ -83,6 +101,11 @@
 - OCR 资源层已有 `AiAsset.OcrPpOcrV5Mobile` 和 `OcrTextRepository` adapter 边界，
   生产入口已切到 Paddle Lite adapter，det + rec 多框链路已接入，并已在真机使用
   PP-OCRv5 mobile 资源和 PaddleOCR 标准图片通过非 skip smoke。
+- OCR 中文准确率当前仍不能按“可用”验收：det 后处理仍是概率图连通域矩形框，
+  不是 PaddleOCR 标准 DB postprocess 的 contour、unclip 和 rotated/perspective crop；
+  中文截图小字、密集笔画和多行场景容易被紧框裁掉或混入邻行。已先补 recognition crop
+  padding 降低切字风险，但后续必须实现 DB polygon/unclip/rotated crop，并补中文样本
+  断言型 smoke，而不是只验证“输出非空”。
 - ASR 资源层和 `VoiceInputRepository` adapter 边界已存在，sherpa-onnx streaming
   Zipformer runtime、`AudioRecord` 和 partial/final result 回写已接入，仍待真机端到端 smoke。
 - `app` 已有 ViewModel 单元测试、OCR workflow 单元测试、Compose UI 测试和
@@ -175,8 +198,14 @@
   predictor 创建和 EXIF 旋转沿用。当前已接入 rec predictor 的整图单行识别路径：
   bitmap resize/normalize、Tensor 输入、`predictor.run()` 和 CTC decode 已有单测覆盖。
 - det resize/stride 对齐、BGR NCHW 归一化、概率图连通域后处理、文本框排序和
-  axis-aligned crop + rec 多框循环已接入，并有纯 JVM 单测覆盖。后续仍缺 DB polygon
+  axis-aligned crop + rec 多框循环已接入，并有纯 JVM 单测覆盖。recognition crop 已增加
+  源图边界内 padding，降低中文笔画被紧框裁切的概率。后续仍缺 DB polygon
   unclip/rotated crop、更精确文本框排序、typed error 收敛。
+- OCR 多语支持策略必须从“单资产”升级为“共享 det + 多 rec/字典 session”：
+  - 中/英/日/繁中先使用当前 `PP-OCRv5_mobile_rec.nb` 和 `ppocr_keys_ocrv5.txt`。
+  - 阿拉伯文、俄文、葡萄牙文、德文、韩文分别追加官方 multilingual rec 模型和字典。
+  - UI 选择源语言时传入 OCR repository；自动检测时先用当前通用 session，后续再补脚本/检测器。
+  - 每个新增 rec 模型都必须有 asset spec、下载通知、文件校验和最小真机 smoke。
 - 已新增标准图片 smoke 入口：`scripts/download-ocr-smoke-images.sh` 下载 PaddleOCR/PaddleX
   demo 图片，`PaddleLiteOcrSmokeTest` 可在设备已有 OCR 模型资源时把标准图片喂给
   Paddle Lite PP-OCRv5 mobile det + rec runtime 做真机 smoke；模型未下载时测试显式 skip。

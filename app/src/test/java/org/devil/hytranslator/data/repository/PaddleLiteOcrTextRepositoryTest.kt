@@ -214,6 +214,19 @@ class PaddleLiteOcrTextRepositoryTest {
         assertEquals(listOf(1, 7), PaddleOcrDetectionPostprocessor.sortForReading(boxes).map { it.left })
     }
 
+    @Test
+    fun textBoxExpandForRecognition_addsPaddingAndClampsToSourceBounds() {
+        val expanded = PaddleOcrTextBox(
+            left = 10,
+            top = 5,
+            right = 60,
+            bottom = 25,
+            score = 0.9f,
+        ).expandForRecognition(sourceWidth = 64, sourceHeight = 28)
+
+        assertTextBox(left = 6, top = 2, right = 64, bottom = 28, score = 0.9f, actual = expanded)
+    }
+
     private fun createOcrFiles(labels: String) {
         val dir = File(temporaryFolder.root, "ai-assets/pp-ocrv5-mobile")
         check(dir.mkdirs())
