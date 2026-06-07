@@ -98,8 +98,9 @@
 - `ModelDownloadService` 和 `AiAssetDownloadService` 已不再把 companion object
   `MutableStateFlow` 作为 UI 状态来源；当前已新增 DataStore 持久化状态 store。
   Service 非正常销毁时会把活跃下载持久化为 interrupted error；App 初始化时也会审计
-  DataStore 中残留的 downloading 记录并标记为 interrupted error。后续仍要补完整 job
-  metadata、重试次数和真机进程恢复验收。
+  DataStore 中残留的 downloading 记录并标记为 interrupted error；已新增真机 instrumentation
+  验证模型和 AI 资源下载审计会把残留 downloading 状态转成 interrupted error。后续仍要补完整
+  job metadata、重试次数和真实 service/recent task 恢复验收。
 - 两套下载 service/notifier 重复实现下载 job、foreground notification、取消动作、
   进度节流和错误展示，后续应收敛为统一 download runtime，再由 model/AI asset
   adapter 提供 job metadata。
@@ -107,7 +108,7 @@
   AI 资源下载状态已按 asset 独立持久化，ViewModel 也按 ASR/OCR 分别观察状态。
   `AiAssetDownloadService` 已按 asset 管理下载 job，支持 ASR/OCR 并发下载和分别取消。
   已新增真机 instrumentation 验证通知取消 action 只清理目标 asset 的持久化下载状态。
-  后续还要补 retry action 和进程恢复验收。
+  后续还要补 retry action 和真实 service/recent task 恢复验收。
 - 通知动作已覆盖取消、打开 App 和失败后重试；通知 content intent 已携带模型/AI
   资源下载目标上下文，模型下载通知会打开模型选择入口，AI 资源通知会高亮对应 ASR/OCR
   资源状态行。已新增模型下载取消 action 到 DataStore Idle 的真机 instrumentation 测试；
@@ -126,6 +127,8 @@
   后续仍要补这些 UI 入口到 service/notification 的真机验收。
 - 还缺少下载恢复、通知权限拒绝、前台服务被系统重启、
   recent task 划掉后的自动化或手动验收用例。
+  当前已覆盖 App 启动审计残留 downloading 的基础恢复机制，但还没覆盖真实 service 被系统重启
+  或 recent task 划掉时的端到端用户路径。
 
 ### OCR
 
@@ -409,7 +412,8 @@ DI 默认决策：
     已新增 `AiAssetFileDownloader` 本地 HTTP JVM 测试，覆盖 direct 文件下载、tar.gz entry
     解包和 Range 续传；
     已新增 service notification cancel action 的真机 instrumentation 测试；
-    后续还需补下载取消、retry action 和进程恢复测试。
+    已新增下载恢复 audit 的真机 instrumentation 测试；
+    后续还需补下载取消、retry action 和真实 service/recent task 恢复测试。
   - 已新增 AI asset spec JVM 测试，覆盖 OCR PP-OCRv5 mobile 必需文件、URL resource
     和 tar.gz entry 配置。
 - Compose UI 测试：
