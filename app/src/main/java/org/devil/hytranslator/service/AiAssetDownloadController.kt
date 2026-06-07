@@ -17,6 +17,7 @@ class AiAssetDownloadController(
 ) : AiAssetDownloadActions {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val stateStore = AiAssetDownloadStateStore(context)
+    private val startScheduler = DownloadStartScheduler(context)
 
     override val state: StateFlow<AiAssetDownloadState> = stateStore.state.stateIn(
         scope = scope,
@@ -38,7 +39,7 @@ class AiAssetDownloadController(
         )
 
     override fun start(asset: AiAsset) {
-        AiAssetDownloadService.start(context, asset)
+        startScheduler.startAiAssetDownload(asset)
     }
 
     override fun cancel() {

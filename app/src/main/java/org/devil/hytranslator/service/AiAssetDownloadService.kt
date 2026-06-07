@@ -179,7 +179,7 @@ class AiAssetDownloadService : Service() {
         const val EXTRA_ASSET = "asset"
         private const val DOWNLOAD_INTERRUPTED_MESSAGE = "Download was interrupted"
 
-        fun start(context: Context, asset: AiAsset) {
+        fun startForegroundService(context: Context, asset: AiAsset) {
             val intent = Intent(context, AiAssetDownloadService::class.java)
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_ASSET, asset.name)

@@ -17,6 +17,7 @@ class ModelDownloadController(
 ) : ModelDownloadActions {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val stateStore = ModelDownloadStateStore(context)
+    private val startScheduler = DownloadStartScheduler(context)
 
     override val state: StateFlow<ModelDownloadState> = stateStore.state.stateIn(
         scope = scope,
@@ -31,7 +32,7 @@ class ModelDownloadController(
     }
 
     override fun start(model: ModelOption) {
-        ModelDownloadService.start(context, model)
+        startScheduler.startModelDownload(model)
     }
 
     override fun cancel() {

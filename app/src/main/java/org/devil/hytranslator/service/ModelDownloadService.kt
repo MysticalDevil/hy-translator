@@ -174,7 +174,7 @@ class ModelDownloadService : Service() {
         const val ACTION_CANCEL = "org.devil.hytranslator.action.CANCEL_MODEL_DOWNLOAD"
         private const val DOWNLOAD_INTERRUPTED_MESSAGE = "Download was interrupted"
 
-        fun start(context: Context, model: ModelOption) {
+        fun startForegroundService(context: Context, model: ModelOption) {
             val intent = Intent(context, ModelDownloadService::class.java)
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_MODEL_KEY, model.key)
