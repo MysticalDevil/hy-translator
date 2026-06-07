@@ -58,7 +58,11 @@ internal data class BundledModelTarget(
 )
 
 internal fun AssetManager.assetExists(path: String): Boolean {
+    return assetExists(path) { parent -> list(parent) }
+}
+
+internal fun assetExists(path: String, listAssets: (String) -> Array<String>?): Boolean {
     val parent = path.substringBeforeLast('/', missingDelimiterValue = "")
     val name = path.substringAfterLast('/')
-    return list(parent).orEmpty().contains(name)
+    return listAssets(parent).orEmpty().contains(name)
 }

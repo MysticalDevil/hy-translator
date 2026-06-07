@@ -15,4 +15,26 @@ class BundledModelInstallerTest {
         assertEquals(target.assetPath, target.outputPath)
         assertEquals(100_000_000L, target.minBytes)
     }
+
+    @Test
+    fun assetExists_listsParentDirectoryAndMatchesFileName() {
+        val queriedParents = mutableListOf<String>()
+
+        val exists = assetExists("models/Hy-MT2-1.8B-Q4_K_M.gguf") { parent ->
+            queriedParents += parent
+            arrayOf("Hy-MT2-1.8B-Q4_K_M.gguf")
+        }
+
+        assertEquals(listOf("models"), queriedParents)
+        assertEquals(true, exists)
+    }
+
+    @Test
+    fun assetExists_returnsFalseWhenParentDirectoryDoesNotContainFile() {
+        val exists = assetExists("models/Hy-MT2-1.8B-Q4_K_M.gguf") {
+            arrayOf("other.gguf")
+        }
+
+        assertEquals(false, exists)
+    }
 }
