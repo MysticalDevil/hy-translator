@@ -99,9 +99,9 @@
   `MutableStateFlow` 作为 UI 状态来源；当前已新增 DataStore 持久化状态 store。
   Service 非正常销毁时会把活跃下载持久化为 interrupted error；App 初始化时也会审计
   DataStore 中残留的 downloading 记录并标记为 interrupted error；已新增真机 instrumentation
-  验证模型和 AI 资源下载审计会把残留 downloading 状态转成 interrupted error。后续仍要补完整
-  job id、速度等 metadata 和真实 service/recent task 恢复验收；基础 attempt/retry 计数已随
-  模型和 ASR/OCR 下载状态持久化。
+  验证模型和 AI 资源下载审计会把残留 downloading 状态转成 interrupted error。基础 job id 和
+  attempt/retry 计数已随模型和 ASR/OCR 下载状态持久化；后续仍要补速度等 metadata 和真实
+  service/recent task 恢复验收。
 - 两套下载 service/notifier 重复实现下载 job、foreground notification、取消动作、
   进度节流和错误展示，后续应收敛为统一 download runtime，再由 model/AI asset
   adapter 提供 job metadata。
@@ -360,8 +360,8 @@ DI 默认决策：
 - 下载状态模型已从 Service 内部类型迁到 domain 层，并已移除 service 静态状态流；
   当前通过 DataStore 持久化基础下载状态，service 异常销毁会记录 interrupted error；
   App 初始化会把上次进程直接结束后残留的 downloading 记录审计为 interrupted error；
-  当前已持久化 attempt 元数据，progress 更新不会递增 attempt，失败后重新开始会递增 attempt；
-  后续还需补 job id、速度和更完整的启动恢复策略。
+  当前已持久化 job id 和 attempt 元数据，progress 更新不会递增 attempt 或改变 job id，
+  失败后重新开始会递增 attempt 并生成新 job id；后续还需补速度和更完整的启动恢复策略。
 - 下载进度、速度、剩余大小、错误原因使用统一 domain model，再映射到 UI 和 notification。
 - 通知 adapter 只负责平台渲染：
   - Android 16+ 使用 `Notification.ProgressStyle` 和实时更新。
@@ -430,7 +430,8 @@ DI 默认决策：
     已新增 service notification cancel action 的真机 instrumentation 测试；
     已新增下载恢复 audit 的真机 instrumentation 测试；
     已新增通知 retry/cancel/open intent 工厂的真机 instrumentation 测试；
-    已新增 DataStore attempt 元数据真机测试，覆盖模型和 ASR/OCR 资源下载的 retry 计数；
+    已新增 DataStore job id/attempt 元数据真机测试，覆盖模型和 ASR/OCR 资源下载的 retry 计数
+    与稳定 job id；
     后续还需补真实 retry 端到端和真实 service/recent task 恢复测试。
   - 已新增 AI asset spec JVM 测试，覆盖 OCR PP-OCRv5 mobile 必需文件、URL resource
     和 tar.gz entry 配置。

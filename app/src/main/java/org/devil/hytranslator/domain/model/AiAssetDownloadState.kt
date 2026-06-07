@@ -6,15 +6,18 @@ sealed class AiAssetDownloadState {
         val asset: AiAsset,
         val progress: DownloadProgress?,
         val attempt: Long = 0L,
+        val jobId: String = "",
     ) : AiAssetDownloadState()
     data class Completed(
         val asset: AiAsset,
         val path: String,
         val attempt: Long = 0L,
+        val jobId: String = "",
     ) : AiAssetDownloadState()
     data class Error(
         val asset: AiAsset,
         val message: String,
         val attempt: Long = 0L,
+        val jobId: String = "",
     ) : AiAssetDownloadState()
 }

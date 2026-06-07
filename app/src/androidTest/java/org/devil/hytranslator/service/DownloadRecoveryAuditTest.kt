@@ -49,6 +49,7 @@ class DownloadRecoveryAuditTest {
                 model = model,
                 message = DOWNLOAD_INTERRUPTED_MESSAGE,
                 attempt = 1L,
+                jobId = "model:Q4_K_M:1",
             ),
             state,
         )
@@ -94,6 +95,9 @@ class DownloadRecoveryAuditTest {
         assertEquals(1L, first.attempt)
         assertEquals(1L, progressUpdate.attempt)
         assertEquals(2L, retry.attempt)
+        assertEquals("model:Q4_K_M:1", first.jobId)
+        assertEquals(first.jobId, progressUpdate.jobId)
+        assertEquals("model:Q4_K_M:2", retry.jobId)
     }
 
     @Test
@@ -123,6 +127,7 @@ class DownloadRecoveryAuditTest {
                 asset = AiAsset.AsrStreamingZipformer,
                 message = DOWNLOAD_INTERRUPTED_MESSAGE,
                 attempt = 1L,
+                jobId = "ai:AsrStreamingZipformer:1",
             ),
             asrState,
         )
@@ -131,6 +136,7 @@ class DownloadRecoveryAuditTest {
                 asset = AiAsset.OcrPpOcrV5Mobile,
                 message = DOWNLOAD_INTERRUPTED_MESSAGE,
                 attempt = 1L,
+                jobId = "ai:OcrPpOcrV5Mobile:1",
             ),
             ocrState,
         )
@@ -173,6 +179,9 @@ class DownloadRecoveryAuditTest {
         assertEquals(1L, asrFirst.attempt)
         assertEquals(1L, ocrFirst.attempt)
         assertEquals(2L, ocrRetry.attempt)
+        assertEquals("ai:AsrStreamingZipformer:1", asrFirst.jobId)
+        assertEquals("ai:OcrPpOcrV5Mobile:1", ocrFirst.jobId)
+        assertEquals("ai:OcrPpOcrV5Mobile:2", ocrRetry.jobId)
         assertSame(AiAsset.OcrPpOcrV5Mobile, ocrRetry.asset)
     }
 

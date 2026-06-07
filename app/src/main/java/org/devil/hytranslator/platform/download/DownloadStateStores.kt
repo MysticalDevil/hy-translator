@@ -32,6 +32,7 @@ class ModelDownloadStateStore(
             preferences[MODEL_STATUS] = STATUS_DOWNLOADING
             preferences[MODEL_KEY] = model.key
             preferences[MODEL_ATTEMPT] = attempt
+            preferences[MODEL_JOB_ID] = modelJobId(model, attempt)
             preferences.remove(MODEL_PATH)
             preferences.remove(MODEL_ERROR)
             preferences.writeProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL, progress)
@@ -44,6 +45,8 @@ class ModelDownloadStateStore(
             preferences[MODEL_KEY] = model.key
             preferences[MODEL_PATH] = path
             preferences[MODEL_ATTEMPT] = preferences[MODEL_ATTEMPT] ?: DEFAULT_ATTEMPT
+            preferences[MODEL_JOB_ID] = preferences[MODEL_JOB_ID]
+                ?: modelJobId(model, preferences[MODEL_ATTEMPT] ?: DEFAULT_ATTEMPT)
             preferences.remove(MODEL_ERROR)
             preferences.clearProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL)
         }
@@ -55,6 +58,8 @@ class ModelDownloadStateStore(
             preferences[MODEL_KEY] = model.key
             preferences[MODEL_ERROR] = message
             preferences[MODEL_ATTEMPT] = preferences[MODEL_ATTEMPT] ?: DEFAULT_ATTEMPT
+            preferences[MODEL_JOB_ID] = preferences[MODEL_JOB_ID]
+                ?: modelJobId(model, preferences[MODEL_ATTEMPT] ?: DEFAULT_ATTEMPT)
             preferences.remove(MODEL_PATH)
             preferences.clearProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL)
         }
@@ -67,6 +72,7 @@ class ModelDownloadStateStore(
             preferences.remove(MODEL_PATH)
             preferences.remove(MODEL_ERROR)
             preferences.remove(MODEL_ATTEMPT)
+            preferences.remove(MODEL_JOB_ID)
             preferences.clearProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL)
         }
     }
@@ -77,6 +83,13 @@ class ModelDownloadStateStore(
                 preferences[MODEL_STATUS] = STATUS_ERROR
                 preferences[MODEL_ERROR] = message
                 preferences[MODEL_ATTEMPT] = preferences[MODEL_ATTEMPT] ?: DEFAULT_ATTEMPT
+                val model = preferences[MODEL_KEY]?.let { key ->
+                    runCatching { ModelOptions.getByKey(key) }.getOrNull()
+                }
+                if (model != null) {
+                    preferences[MODEL_JOB_ID] = preferences[MODEL_JOB_ID]
+                        ?: modelJobId(model, preferences[MODEL_ATTEMPT] ?: DEFAULT_ATTEMPT)
+                }
                 preferences.remove(MODEL_PATH)
                 preferences.clearProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL)
             }
@@ -90,6 +103,7 @@ class ModelDownloadStateStore(
             path = this[MODEL_PATH],
             error = this[MODEL_ERROR],
             attempt = this[MODEL_ATTEMPT],
+            jobId = this[MODEL_JOB_ID],
             progressType = this[MODEL_PROGRESS_TYPE],
             downloaded = this[MODEL_DOWNLOADED],
             total = this[MODEL_TOTAL],
@@ -102,6 +116,7 @@ class ModelDownloadStateStore(
         val MODEL_PATH = stringPreferencesKey("model_path")
         val MODEL_ERROR = stringPreferencesKey("model_error")
         val MODEL_ATTEMPT = longPreferencesKey("model_attempt")
+        val MODEL_JOB_ID = stringPreferencesKey("model_job_id")
         val MODEL_PROGRESS_TYPE = stringPreferencesKey("model_progress_type")
         val MODEL_DOWNLOADED = longPreferencesKey("model_downloaded")
         val MODEL_TOTAL = longPreferencesKey("model_total")
@@ -130,6 +145,7 @@ class AiAssetDownloadStateStore(
             val attempt = preferences.nextAiAssetAttempt(asset)
             preferences[aiAssetStatusKey(asset)] = STATUS_DOWNLOADING
             preferences[aiAssetAttemptKey(asset)] = attempt
+            preferences[aiAssetJobIdKey(asset)] = aiAssetJobId(asset, attempt)
             preferences.remove(aiAssetPathKey(asset))
             preferences.remove(aiAssetErrorKey(asset))
             preferences.writeProgress(
@@ -147,6 +163,8 @@ class AiAssetDownloadStateStore(
             preferences[aiAssetPathKey(asset)] = path
             preferences[aiAssetAttemptKey(asset)] =
                 preferences[aiAssetAttemptKey(asset)] ?: DEFAULT_ATTEMPT
+            preferences[aiAssetJobIdKey(asset)] = preferences[aiAssetJobIdKey(asset)]
+                ?: aiAssetJobId(asset, preferences[aiAssetAttemptKey(asset)] ?: DEFAULT_ATTEMPT)
             preferences.remove(aiAssetErrorKey(asset))
             preferences.clearProgress(
                 aiAssetProgressTypeKey(asset),
@@ -162,6 +180,8 @@ class AiAssetDownloadStateStore(
             preferences[aiAssetErrorKey(asset)] = message
             preferences[aiAssetAttemptKey(asset)] =
                 preferences[aiAssetAttemptKey(asset)] ?: DEFAULT_ATTEMPT
+            preferences[aiAssetJobIdKey(asset)] = preferences[aiAssetJobIdKey(asset)]
+                ?: aiAssetJobId(asset, preferences[aiAssetAttemptKey(asset)] ?: DEFAULT_ATTEMPT)
             preferences.remove(aiAssetPathKey(asset))
             preferences.clearProgress(
                 aiAssetProgressTypeKey(asset),
@@ -193,6 +213,11 @@ class AiAssetDownloadStateStore(
                     preferences[aiAssetErrorKey(asset)] = message
                     preferences[aiAssetAttemptKey(asset)] =
                         preferences[aiAssetAttemptKey(asset)] ?: DEFAULT_ATTEMPT
+                    preferences[aiAssetJobIdKey(asset)] = preferences[aiAssetJobIdKey(asset)]
+                        ?: aiAssetJobId(
+                            asset,
+                            preferences[aiAssetAttemptKey(asset)] ?: DEFAULT_ATTEMPT,
+                        )
                     preferences.remove(aiAssetPathKey(asset))
                     preferences.clearProgress(
                         aiAssetProgressTypeKey(asset),
@@ -211,6 +236,7 @@ class AiAssetDownloadStateStore(
             path = this[aiAssetPathKey(asset)],
             error = this[aiAssetErrorKey(asset)],
             attempt = this[aiAssetAttemptKey(asset)],
+            jobId = this[aiAssetJobIdKey(asset)],
             progressType = this[aiAssetProgressTypeKey(asset)],
             downloaded = this[aiAssetDownloadedKey(asset)],
             total = this[aiAssetTotalKey(asset)],
@@ -233,6 +259,7 @@ internal fun modelDownloadStateFromRecord(
     downloaded: Long?,
     total: Long?,
     attempt: Long? = null,
+    jobId: String? = null,
 ): ModelDownloadState {
     val model = modelKey?.let { key ->
         runCatching { ModelOptions.getByKey(key) }.getOrNull()
@@ -243,18 +270,21 @@ internal fun modelDownloadStateFromRecord(
             model = model,
             progress = progressFromRecord(progressType, downloaded, total),
             attempt = attempt ?: 0L,
+            jobId = jobId.orEmpty(),
         )
 
         STATUS_COMPLETED -> ModelDownloadState.Completed(
             model = model,
             path = path ?: return ModelDownloadState.Idle,
             attempt = attempt ?: 0L,
+            jobId = jobId.orEmpty(),
         )
 
         STATUS_ERROR -> ModelDownloadState.Error(
             model = model,
             message = error ?: DEFAULT_DOWNLOAD_ERROR,
             attempt = attempt ?: 0L,
+            jobId = jobId.orEmpty(),
         )
 
         else -> ModelDownloadState.Idle
@@ -270,6 +300,7 @@ internal fun aiAssetDownloadStateFromRecord(
     downloaded: Long?,
     total: Long?,
     attempt: Long? = null,
+    jobId: String? = null,
 ): AiAssetDownloadState {
     val asset = assetName?.let { name ->
         runCatching { AiAsset.valueOf(name) }.getOrNull()
@@ -280,18 +311,21 @@ internal fun aiAssetDownloadStateFromRecord(
             asset = asset,
             progress = progressFromRecord(progressType, downloaded, total),
             attempt = attempt ?: 0L,
+            jobId = jobId.orEmpty(),
         )
 
         STATUS_COMPLETED -> AiAssetDownloadState.Completed(
             asset = asset,
             path = path ?: return AiAssetDownloadState.Idle,
             attempt = attempt ?: 0L,
+            jobId = jobId.orEmpty(),
         )
 
         STATUS_ERROR -> AiAssetDownloadState.Error(
             asset = asset,
             message = error ?: DEFAULT_DOWNLOAD_ERROR,
             attempt = attempt ?: 0L,
+            jobId = jobId.orEmpty(),
         )
 
         else -> AiAssetDownloadState.Idle
@@ -349,6 +383,7 @@ private fun androidx.datastore.preferences.core.MutablePreferences.clearAsset(as
     remove(aiAssetPathKey(asset))
     remove(aiAssetErrorKey(asset))
     remove(aiAssetAttemptKey(asset))
+    remove(aiAssetJobIdKey(asset))
     clearProgress(aiAssetProgressTypeKey(asset), aiAssetDownloadedKey(asset), aiAssetTotalKey(asset))
 }
 
@@ -385,6 +420,9 @@ private fun aiAssetErrorKey(asset: AiAsset) =
 private fun aiAssetAttemptKey(asset: AiAsset) =
     longPreferencesKey("ai_asset_${asset.name}_attempt")
 
+private fun aiAssetJobIdKey(asset: AiAsset) =
+    stringPreferencesKey("ai_asset_${asset.name}_job_id")
+
 private fun aiAssetProgressTypeKey(asset: AiAsset) =
     stringPreferencesKey("ai_asset_${asset.name}_progress_type")
 
@@ -406,3 +444,9 @@ private fun androidx.datastore.preferences.core.MutablePreferences.clearProgress
 
 private const val DEFAULT_DOWNLOAD_ERROR = "Download failed"
 private const val DEFAULT_ATTEMPT = 1L
+
+private fun modelJobId(model: ModelOption, attempt: Long): String =
+    "model:${model.key}:$attempt"
+
+private fun aiAssetJobId(asset: AiAsset, attempt: Long): String =
+    "ai:${asset.name}:$attempt"
