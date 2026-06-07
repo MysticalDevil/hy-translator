@@ -315,8 +315,10 @@ internal class InferenceEngineImpl private constructor(
             when(_state.value) {
                 is InferenceEngine.State.Uninitialized -> {}
                 is InferenceEngine.State.Initialized -> shutdown()
+                is InferenceEngine.State.Error -> shutdown()
                 else -> { unload(); shutdown() }
             }
+            _state.value = InferenceEngine.State.Uninitialized
         }
         llamaScope.cancel()
     }

@@ -386,10 +386,10 @@ DI 默认决策：
     `RUN_USER_INITIATED_JOBS` 和两个 `JobService`。当前 UIDT JobService 已直接复用
     `DownloadForegroundRuntime` 执行真实下载、通过 `setNotification(...)` 发布 UIDT 通知，
     不再委托 FGS 作为主执行机制；Android 13 及以下仍走现有 dataSync FGS fallback。
-    已新增真机 manifest 测试验证 UIDT 权限和 `BIND_JOB_SERVICE` 声明，后续仍要补真实
-    JobScheduler timeout smoke。已新增真机 JobScheduler schedule/run smoke，使用 fake
-    repository 覆盖模型和 OCR asset 的 UIDT job 能通过 `cmd jobscheduler run -f` 执行并持久化
-    Completed 状态，不触发真实大文件下载。
+    已新增真机 manifest 测试验证 UIDT 权限和 `BIND_JOB_SERVICE` 声明。已新增真机
+    JobScheduler schedule/run/timeout smoke，使用 fake repository 覆盖模型和 OCR asset 的
+    UIDT job 能通过 `cmd jobscheduler run -f` 执行并持久化 Completed 状态，也能通过
+    `cmd jobscheduler timeout` 触发 interrupted error 持久化，不触发真实大文件下载。
 - 下载状态模型已从 Service 内部类型迁到 domain 层，并已移除 service 静态状态流；
   当前通过 DataStore 持久化基础下载状态，service 异常销毁会记录 interrupted error；
   App 初始化会把上次进程直接结束后残留的 downloading 记录审计为 interrupted error；
@@ -441,7 +441,9 @@ DI 默认决策：
   state/error 映射成 app domain 类型。
 - `TranslatorViewModel` 不直接持有 native engine，不直接调用 native unload/destroy。
 - `InferenceEngineImpl` 的单例、dispatcher、native library load 和
-  destroy 行为补测试或至少补 smoke test。
+  destroy 行为补测试或至少补 smoke test。已修复模型加载失败后 Activity 销毁触发
+  native `unload()` 空 context 崩溃的问题：Kotlin `destroy()` 不再对 Error 状态调用
+  native unload，C++ `unload()` 也对空 context/model/sampler/batch 做幂等保护。
 - native 模块文档化：
   - 支持 ABI。
   - llama.cpp 源码同步方式。
