@@ -7,18 +7,21 @@ import org.junit.Test
 
 class NotificationNavigationTest {
     @Test
-    fun destination_returnsModelDownloadTarget() {
+    fun destination_returnsModelDownloadTargetWithModelKey() {
         val destination = NotificationNavigation.destination(
             target = NotificationNavigation.TARGET_MODEL_DOWNLOAD,
-            modelKey = "Q6_K",
+            modelKey = "Q4_K_M",
             aiAssetName = null,
         )
 
-        assertEquals(NotificationDestination.ModelDownload("Q6_K"), destination)
+        assertEquals(
+            NotificationDestination.ModelDownload(modelKey = "Q4_K_M"),
+            destination,
+        )
     }
 
     @Test
-    fun destination_returnsAiAssetDownloadTarget() {
+    fun destination_returnsAiAssetDownloadTargetForKnownAsset() {
         val destination = NotificationNavigation.destination(
             target = NotificationNavigation.TARGET_AI_ASSET_DOWNLOAD,
             modelKey = null,
@@ -32,11 +35,22 @@ class NotificationNavigationTest {
     }
 
     @Test
-    fun destination_returnsNullForInvalidAiAsset() {
+    fun destination_ignoresUnknownAiAssetTarget() {
         val destination = NotificationNavigation.destination(
             target = NotificationNavigation.TARGET_AI_ASSET_DOWNLOAD,
             modelKey = null,
-            aiAssetName = "missing",
+            aiAssetName = "UnknownAsset",
+        )
+
+        assertNull(destination)
+    }
+
+    @Test
+    fun destination_ignoresUnknownTarget() {
+        val destination = NotificationNavigation.destination(
+            target = "unknown",
+            modelKey = "Q4_K_M",
+            aiAssetName = AiAsset.AsrStreamingZipformer.name,
         )
 
         assertNull(destination)

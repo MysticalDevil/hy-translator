@@ -111,7 +111,8 @@
 - 通知动作已覆盖取消、打开 App 和失败后重试；通知 content intent 已携带模型/AI
   资源下载目标上下文，模型下载通知会打开模型选择入口，AI 资源通知会高亮对应 ASR/OCR
   资源状态行。已新增模型下载取消 action 到 DataStore Idle 的真机 instrumentation 测试；
-  后续还缺滚动定位、retry/open action 和完成/失败态测试。
+  通知目标 extra 到 `NotificationDestination` 的 JVM 回归测试已补齐。后续还缺滚动定位、
+  retry action、Activity open action 和完成/失败态测试。
 - UI 取消、通知取消、模型切换、清理资源和 service 自身失败之间还没有完整双向绑定；
   `TranslatorViewModel` 已收集持久化下载状态并按 AI asset 分别映射 UI 状态，但模型下载完成后的
   自动加载语义仍依赖 App 进程存活。
