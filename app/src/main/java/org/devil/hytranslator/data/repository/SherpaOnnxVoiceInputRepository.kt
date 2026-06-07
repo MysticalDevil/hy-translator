@@ -12,11 +12,13 @@ import com.k2fsa.sherpa.onnx.OnlineRecognizer
 import com.k2fsa.sherpa.onnx.OnlineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OnlineStream
 import com.k2fsa.sherpa.onnx.OnlineTransducerModelConfig
+import org.devil.hytranslator.domain.model.VoiceInputEvent
 import org.devil.hytranslator.domain.model.VoiceInputState
 import org.devil.hytranslator.domain.repository.VoiceInputRepository
 import java.io.File
 import kotlin.concurrent.thread
 import kotlin.math.min
+import kotlin.math.sqrt
 
 class SherpaOnnxVoiceInputRepository(
     private val nativeLoader: (String) -> Unit = { libraryName ->
@@ -24,15 +26,11 @@ class SherpaOnnxVoiceInputRepository(
     },
     private val sessionFactory: (
         assetPath: String,
-        onPartialResult: (String) -> Unit,
-        onFinalResult: (String) -> Unit,
-        onError: (String) -> Unit,
-    ) -> VoiceInputSession = { assetPath, onPartialResult, onFinalResult, onError ->
+        onEvent: (VoiceInputEvent) -> Unit,
+    ) -> VoiceInputSession = { assetPath, onEvent ->
         AudioRecordSherpaOnnxVoiceInputSession(
             assetPath = assetPath,
-            onPartialResult = onPartialResult,
-            onFinalResult = onFinalResult,
-            onError = onError,
+            onEvent = onEvent,
         )
     },
 ) : VoiceInputRepository {
@@ -40,9 +38,7 @@ class SherpaOnnxVoiceInputRepository(
 
     override suspend fun start(
         assetPath: String,
-        onPartialResult: (String) -> Unit,
-        onFinalResult: (String) -> Unit,
-        onError: (String) -> Unit,
+        onEvent: (VoiceInputEvent) -> Unit,
     ): VoiceInputState {
         val missingModelFile = missingSherpaOnnxModelFile(assetPath)
         if (missingModelFile != null) {
@@ -58,7 +54,7 @@ class SherpaOnnxVoiceInputRepository(
         }
 
         stop()
-        val session = sessionFactory(assetPath, onPartialResult, onFinalResult, onError)
+        val session = sessionFactory(assetPath, onEvent)
         val started = session.start()
         if (started.isFailure) {
             session.stop()
@@ -98,9 +94,7 @@ interface VoiceInputSession {
 
 private class AudioRecordSherpaOnnxVoiceInputSession(
     private val assetPath: String,
-    private val onPartialResult: (String) -> Unit,
-    private val onFinalResult: (String) -> Unit,
-    private val onError: (String) -> Unit,
+    private val onEvent: (VoiceInputEvent) -> Unit,
 ) : VoiceInputSession {
     private val sampleRateInHz = 16000
     private val channelConfig = AudioFormat.CHANNEL_IN_MONO
@@ -159,9 +153,10 @@ private class AudioRecordSherpaOnnxVoiceInputSession(
         worker = thread(start = true, name = "sherpa-onnx-asr") {
             runCatching {
                 processSamples(nextRecognizer, nextAudioRecord)
+                onEvent(VoiceInputEvent.Stopped)
             }.onFailure { error ->
                 recording = false
-                onError(error.message ?: "sherpa-onnx ASR runtime failed")
+                onEvent(VoiceInputEvent.Error(error.message ?: "sherpa-onnx ASR runtime failed"))
             }
         }
     }
@@ -184,8 +179,7 @@ private class AudioRecordSherpaOnnxVoiceInputSession(
             audioRecord = audioRecord,
             recording = { recording },
             sampleRate = sampleRateInHz,
-            onPartialResult = onPartialResult,
-            onFinalResult = onFinalResult,
+            onEvent = onEvent,
         )
     }
 
@@ -253,8 +247,7 @@ private class SherpaOnnxStreamingDecoder(
         audioRecord: AudioRecord,
         recording: () -> Boolean,
         sampleRate: Int,
-        onPartialResult: (String) -> Unit,
-        onFinalResult: (String) -> Unit,
+        onEvent: (VoiceInputEvent) -> Unit,
     ) {
         val stream = recognizer.createStream()
         try {
@@ -268,13 +261,13 @@ private class SherpaOnnxStreamingDecoder(
                 if (read <= 0) continue
 
                 val samples = FloatArray(read) { index -> buffer[index] / PCM_16_SCALE }
+                onEvent(VoiceInputEvent.Level(samples.rms()))
                 committedText = acceptChunk(
                     stream = stream,
                     samples = samples,
                     sampleRate = sampleRate,
                     committedText = committedText,
-                    onPartialResult = onPartialResult,
-                    onFinalResult = onFinalResult,
+                    onEvent = onEvent,
                 )
             }
         } finally {
@@ -298,8 +291,7 @@ private class SherpaOnnxStreamingDecoder(
                     samples = samples.copyOfRange(offset, end),
                     sampleRate = sampleRate,
                     committedText = committedText,
-                    onPartialResult = {},
-                    onFinalResult = {},
+                    onEvent = {},
                 )
                 offset = end
             }
@@ -321,8 +313,7 @@ private class SherpaOnnxStreamingDecoder(
         samples: FloatArray,
         sampleRate: Int,
         committedText: String,
-        onPartialResult: (String) -> Unit,
-        onFinalResult: (String) -> Unit,
+        onEvent: (VoiceInputEvent) -> Unit,
     ): String {
         stream.acceptWaveform(samples, sampleRate)
         while (recognizer.isReady(stream)) {
@@ -331,7 +322,7 @@ private class SherpaOnnxStreamingDecoder(
 
         val partialText = recognizer.getResult(stream).text
         if (partialText.isNotBlank()) {
-            onPartialResult(joinAsrText(committedText, partialText))
+            onEvent(VoiceInputEvent.Partial(joinAsrText(committedText, partialText)))
         }
 
         if (!recognizer.isEndpoint(stream)) return committedText
@@ -341,9 +332,15 @@ private class SherpaOnnxStreamingDecoder(
         }
 
         val nextCommittedText = joinAsrText(committedText, partialText)
-        onFinalResult(nextCommittedText)
+        onEvent(VoiceInputEvent.Final(nextCommittedText))
         recognizer.reset(stream)
         return nextCommittedText
+    }
+
+    private fun FloatArray.rms(): Float {
+        if (isEmpty()) return 0f
+        val meanSquare = fold(0f) { sum, sample -> sum + sample * sample } / size
+        return sqrt(meanSquare).coerceIn(0f, 1f)
     }
 
     private fun joinAsrText(prefix: String, suffix: String): String =

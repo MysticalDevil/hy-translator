@@ -20,6 +20,7 @@ import org.devil.hytranslator.domain.model.Language
 import org.devil.hytranslator.domain.model.ModelDownloadState
 import org.devil.hytranslator.domain.model.ModelOption
 import org.devil.hytranslator.domain.model.ModelStatus
+import org.devil.hytranslator.domain.model.VoiceInputEvent
 import org.devil.hytranslator.domain.model.TranslationEngineState
 import org.devil.hytranslator.domain.model.VoiceInputState
 import org.devil.hytranslator.domain.repository.AiAssetRepository
@@ -241,7 +242,7 @@ class TranslatorViewModelTest {
             asrState.value = AiAssetState.Ready
         }
         val voiceInputRepository = FakeVoiceInputRepository(
-            onStart = { _, onPartialResult, _, _ -> onPartialResult("hello") },
+            onStart = { _, onEvent -> onEvent(VoiceInputEvent.Partial("hello")) },
         )
         val viewModel = createViewModel(
             aiAssetRepository = aiAssetRepository,
@@ -277,6 +278,48 @@ class TranslatorViewModelTest {
             VoiceInputState.Error("AudioRecord read failed"),
             viewModel.uiState.value.voiceInputState,
         )
+    }
+
+    @Test
+    fun voiceInput_whenRepositoryReportsLevel_updatesVoiceInputLevel() = runTest {
+        val aiAssetRepository = FakeAiAssetRepository().apply {
+            asrState.value = AiAssetState.Ready
+        }
+        val voiceInputRepository = FakeVoiceInputRepository()
+        val viewModel = createViewModel(
+            aiAssetRepository = aiAssetRepository,
+            voiceInputRepository = voiceInputRepository,
+        )
+
+        viewModel.initialize()
+        advanceUntilIdle()
+        viewModel.onEvent(TranslatorEvent.VoiceInputToggled(true))
+        advanceUntilIdle()
+        voiceInputRepository.reportLevel(1.4f)
+
+        assertEquals(1f, viewModel.uiState.value.voiceInputLevel)
+    }
+
+    @Test
+    fun voiceInput_whenRepositoryReportsStopped_returnsIdleAndClearsLevel() = runTest {
+        val aiAssetRepository = FakeAiAssetRepository().apply {
+            asrState.value = AiAssetState.Ready
+        }
+        val voiceInputRepository = FakeVoiceInputRepository()
+        val viewModel = createViewModel(
+            aiAssetRepository = aiAssetRepository,
+            voiceInputRepository = voiceInputRepository,
+        )
+
+        viewModel.initialize()
+        advanceUntilIdle()
+        viewModel.onEvent(TranslatorEvent.VoiceInputToggled(true))
+        advanceUntilIdle()
+        voiceInputRepository.reportLevel(0.5f)
+        voiceInputRepository.reportStopped()
+
+        assertSame(VoiceInputState.Idle, viewModel.uiState.value.voiceInputState)
+        assertEquals(0f, viewModel.uiState.value.voiceInputLevel)
     }
 
     @Test
@@ -919,26 +962,22 @@ class TranslatorViewModelTest {
     private class FakeVoiceInputRepository(
         private val onStart: (
             assetPath: String,
-            onPartialResult: (String) -> Unit,
-            onFinalResult: (String) -> Unit,
-            onError: (String) -> Unit,
-        ) -> Unit = { _, _, _, _ -> },
+            onEvent: (VoiceInputEvent) -> Unit,
+        ) -> Unit = { _, _ -> },
     ) : VoiceInputRepository {
         var startedAssetPath: String? = null
             private set
         var stopped = false
             private set
-        private var onError: ((String) -> Unit)? = null
+        private var onEvent: ((VoiceInputEvent) -> Unit)? = null
 
         override suspend fun start(
             assetPath: String,
-            onPartialResult: (String) -> Unit,
-            onFinalResult: (String) -> Unit,
-            onError: (String) -> Unit,
+            onEvent: (VoiceInputEvent) -> Unit,
         ): VoiceInputState {
             startedAssetPath = assetPath
-            this.onError = onError
-            onStart(assetPath, onPartialResult, onFinalResult, onError)
+            this.onEvent = onEvent
+            onStart(assetPath, onEvent)
             return VoiceInputState.Listening
         }
 
@@ -947,7 +986,15 @@ class TranslatorViewModelTest {
         }
 
         fun reportRuntimeError(message: String) {
-            onError?.invoke(message)
+            onEvent?.invoke(VoiceInputEvent.Error(message))
+        }
+
+        fun reportLevel(level: Float) {
+            onEvent?.invoke(VoiceInputEvent.Level(level))
+        }
+
+        fun reportStopped() {
+            onEvent?.invoke(VoiceInputEvent.Stopped)
         }
     }
 

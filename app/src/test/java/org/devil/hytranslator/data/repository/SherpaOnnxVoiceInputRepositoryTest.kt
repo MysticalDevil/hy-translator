@@ -18,7 +18,7 @@ class SherpaOnnxVoiceInputRepositoryTest {
             nativeLoader = { error("native loader should not run") },
         )
 
-        val state = repository.start(temporaryFolder.root.absolutePath, {}, {}, {})
+        val state = repository.start(temporaryFolder.root.absolutePath) {}
 
         assertEquals(
             VoiceInputState.Error("Missing sherpa-onnx ASR file: encoder-epoch-99-avg-1.onnx"),
@@ -33,7 +33,7 @@ class SherpaOnnxVoiceInputRepositoryTest {
             nativeLoader = { throw UnsatisfiedLinkError("missing") },
         )
 
-        val state = repository.start(temporaryFolder.root.absolutePath, {}, {}, {})
+        val state = repository.start(temporaryFolder.root.absolutePath) {}
 
         assertEquals(
             VoiceInputState.Error(
@@ -49,10 +49,10 @@ class SherpaOnnxVoiceInputRepositoryTest {
         val session = FakeVoiceInputSession()
         val repository = SherpaOnnxVoiceInputRepository(
             nativeLoader = {},
-            sessionFactory = { _, _, _, _ -> session },
+            sessionFactory = { _, _ -> session },
         )
 
-        val state = repository.start(temporaryFolder.root.absolutePath, {}, {}, {})
+        val state = repository.start(temporaryFolder.root.absolutePath) {}
 
         assertEquals(VoiceInputState.Listening, state)
         assertEquals(true, session.started)
@@ -63,12 +63,12 @@ class SherpaOnnxVoiceInputRepositoryTest {
         createRequiredModelFiles()
         val repository = SherpaOnnxVoiceInputRepository(
             nativeLoader = {},
-            sessionFactory = { _, _, _, _ ->
+            sessionFactory = { _, _ ->
                 FakeVoiceInputSession(startResult = Result.failure(IllegalStateException("mic failed")))
             },
         )
 
-        val state = repository.start(temporaryFolder.root.absolutePath, {}, {}, {})
+        val state = repository.start(temporaryFolder.root.absolutePath) {}
 
         assertEquals(VoiceInputState.Error("mic failed"), state)
     }

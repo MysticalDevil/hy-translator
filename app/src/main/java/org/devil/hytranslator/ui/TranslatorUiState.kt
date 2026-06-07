@@ -20,4 +20,5 @@ data class TranslatorUiState(
     val asrAssetState: AiAssetState = AiAssetState.NotDownloaded,
     val ocrAssetState: AiAssetState = AiAssetState.NotDownloaded,
     val voiceInputState: VoiceInputState = VoiceInputState.Idle,
+    val voiceInputLevel: Float = 0f,
 )

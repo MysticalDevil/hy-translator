@@ -23,6 +23,7 @@ import org.devil.hytranslator.domain.model.Language
 import org.devil.hytranslator.domain.model.ModelDownloadState
 import org.devil.hytranslator.domain.model.ModelOption
 import org.devil.hytranslator.domain.model.ModelStatus
+import org.devil.hytranslator.domain.model.VoiceInputEvent
 import org.devil.hytranslator.domain.model.VoiceInputState
 import org.devil.hytranslator.domain.repository.AiAssetRepository
 import org.devil.hytranslator.domain.repository.LanguageRepository
@@ -218,9 +219,7 @@ class TranslatorViewModel(
         voiceInputJob = viewModelScope.launch {
             val nextState = voiceInputRepository.start(
                 aiAssetRepository.localPath(AiAsset.AsrStreamingZipformer),
-                onPartialResult = ::onAsrTextReceived,
-                onFinalResult = ::onAsrTextReceived,
-                onError = ::onVoiceInputRuntimeError,
+                onEvent = ::onVoiceInputEvent,
             )
             _uiState.update { it.copy(voiceInputState = nextState) }
         }
@@ -235,6 +234,24 @@ class TranslatorViewModel(
 
     fun onVoiceInputRuntimeError(message: String) {
         _uiState.update { it.copy(voiceInputState = VoiceInputState.Error(message)) }
+    }
+
+    fun onVoiceInputEvent(event: VoiceInputEvent) {
+        when (event) {
+            is VoiceInputEvent.Partial -> onAsrTextReceived(event.text)
+            is VoiceInputEvent.Final -> onAsrTextReceived(event.text)
+            is VoiceInputEvent.Error -> onVoiceInputRuntimeError(event.message)
+            is VoiceInputEvent.Level -> _uiState.update {
+                it.copy(voiceInputLevel = event.value.coerceIn(0f, 1f))
+            }
+            VoiceInputEvent.Stopped -> _uiState.update {
+                if (it.voiceInputState is VoiceInputState.Listening) {
+                    it.copy(voiceInputState = VoiceInputState.Idle, voiceInputLevel = 0f)
+                } else {
+                    it.copy(voiceInputLevel = 0f)
+                }
+            }
+        }
     }
 
     fun onNotificationPermissionDenied(message: String, aiAsset: AiAsset?) {
@@ -633,7 +650,7 @@ class TranslatorViewModel(
         voiceInputJob?.cancel()
         voiceInputJob = null
         voiceInputRepository.stop()
-        _uiState.update { it.copy(voiceInputState = VoiceInputState.Idle) }
+        _uiState.update { it.copy(voiceInputState = VoiceInputState.Idle, voiceInputLevel = 0f) }
     }
 
     private fun scheduleLiveTranslateIfEnabled() {
