@@ -423,6 +423,33 @@ class TranslatorViewModelTest {
     }
 
     @Test
+    fun initialize_whenAiAssetDownloadStateReturnsIdle_resetsOnlyDownloadingTarget() = runTest {
+        val aiAssetDownloadActions = FakeAiAssetDownloadActions()
+        val asrProgress = DownloadProgress.Downloading(downloaded = 10L, total = 100L)
+        val viewModel = createViewModel(aiAssetDownloadActions = aiAssetDownloadActions)
+
+        viewModel.initialize()
+        advanceUntilIdle()
+        aiAssetDownloadActions.mutableState(AiAsset.AsrStreamingZipformer).value =
+            AiAssetDownloadState.Downloading(
+                asset = AiAsset.AsrStreamingZipformer,
+                progress = asrProgress,
+            )
+        aiAssetDownloadActions.mutableState(AiAsset.OcrPpOcrV5Mobile).value =
+            AiAssetDownloadState.Downloading(
+                asset = AiAsset.OcrPpOcrV5Mobile,
+                progress = DownloadProgress.Downloading(downloaded = 50L, total = 100L),
+            )
+        advanceUntilIdle()
+        aiAssetDownloadActions.mutableState(AiAsset.OcrPpOcrV5Mobile).value =
+            AiAssetDownloadState.Idle
+        advanceUntilIdle()
+
+        assertEquals(AiAssetState.Downloading(asrProgress), viewModel.uiState.value.asrAssetState)
+        assertSame(AiAssetState.NotDownloaded, viewModel.uiState.value.ocrAssetState)
+    }
+
+    @Test
     fun asrPartial_updatesInputAndTriggersLiveTranslate() = runTest {
         val translatorRepository = FakeTranslatorRepository(
             isReady = true,
@@ -499,6 +526,28 @@ class TranslatorViewModelTest {
         assertSame(ModelStatus.Downloading, viewModel.uiState.value.modelStatus)
         assertEquals(progress, viewModel.downloadProgress.value)
         assertEquals(progress, viewModel.uiState.value.downloadProgress)
+    }
+
+    @Test
+    fun initialize_whenDownloadStateReturnsIdle_resetsDownloadingModelState() = runTest {
+        val downloadActions = FakeModelDownloadActions()
+        val modelRepository = FakeModelRepository()
+        val viewModel = createViewModel(
+            modelRepository = modelRepository,
+            downloadActions = downloadActions,
+        )
+
+        viewModel.initialize()
+        downloadActions.mutableState.value = ModelDownloadState.Downloading(
+            model = modelRepository.currentModel,
+            progress = DownloadProgress.Downloading(downloaded = 10L, total = 100L),
+        )
+        advanceUntilIdle()
+        downloadActions.mutableState.value = ModelDownloadState.Idle
+        advanceUntilIdle()
+
+        assertSame(ModelStatus.NotDownloaded, viewModel.uiState.value.modelStatus)
+        assertEquals(null, viewModel.uiState.value.downloadProgress)
     }
 
     @Test

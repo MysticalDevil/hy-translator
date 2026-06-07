@@ -104,6 +104,8 @@ class TranslatorViewModel(
     private var translationOperationId = 0L
     private var initialized = false
     private var handledCompletedDownloadPath: String? = null
+    private var observedModelDownloadActive = false
+    private val observedAiAssetDownloads = mutableSetOf<AiAsset>()
 
     fun initialize() {
         if (initialized) return
@@ -340,9 +342,23 @@ class TranslatorViewModel(
         downloadJob = viewModelScope.launch {
             modelDownloadController.state.collect { state ->
                 when (state) {
-                    is ModelDownloadState.Idle -> {}
+                    is ModelDownloadState.Idle -> {
+                        if (
+                            observedModelDownloadActive &&
+                            _uiState.value.modelStatus is ModelStatus.Downloading
+                        ) {
+                            _uiState.update {
+                                it.copy(
+                                    modelStatus = ModelStatus.NotDownloaded,
+                                    downloadProgress = null,
+                                )
+                            }
+                        }
+                        observedModelDownloadActive = false
+                    }
                     is ModelDownloadState.Downloading -> {
                         if (state.model.key == _uiState.value.selectedModel.key) {
+                            observedModelDownloadActive = true
                             _uiState.update {
                                 it.copy(
                                     modelStatus = ModelStatus.Downloading,
@@ -356,6 +372,7 @@ class TranslatorViewModel(
                             state.model.key == _uiState.value.selectedModel.key &&
                             handledCompletedDownloadPath != state.path
                         ) {
+                            observedModelDownloadActive = false
                             handledCompletedDownloadPath = state.path
                             val operationId = ++modelOperationId
                             loadModel(
@@ -367,6 +384,7 @@ class TranslatorViewModel(
                     }
                     is ModelDownloadState.Error -> {
                         if (state.model.key == _uiState.value.selectedModel.key) {
+                            observedModelDownloadActive = false
                             setModelStatus(ModelStatus.Error(state.message))
                         }
                     }
@@ -411,27 +429,40 @@ class TranslatorViewModel(
             AiAsset.values().forEach { asset ->
                 launch {
                     aiAssetDownloadController.state(asset).collect { state ->
-                        applyAiAssetDownloadState(state)
+                        applyAiAssetDownloadState(asset, state)
                     }
                 }
             }
         }
     }
 
-    private fun applyAiAssetDownloadState(state: AiAssetDownloadState) {
+    private fun applyAiAssetDownloadState(
+        observedAsset: AiAsset,
+        state: AiAssetDownloadState,
+    ) {
         when (state) {
-            is AiAssetDownloadState.Idle -> {}
+            is AiAssetDownloadState.Idle -> {
+                if (
+                    observedAiAssetDownloads.remove(observedAsset) &&
+                    aiAssetState(observedAsset) is AiAssetState.Downloading
+                ) {
+                    setAiAssetState(observedAsset, AiAssetState.NotDownloaded)
+                }
+            }
             is AiAssetDownloadState.Downloading -> {
+                observedAiAssetDownloads.add(state.asset)
                 setAiAssetState(
                     asset = state.asset,
                     assetState = AiAssetState.Downloading(state.progress),
                 )
             }
             is AiAssetDownloadState.Completed -> {
+                observedAiAssetDownloads.remove(state.asset)
                 aiAssetRepository.refresh(state.asset)
                 setAiAssetState(state.asset, AiAssetState.Ready)
             }
             is AiAssetDownloadState.Error -> {
+                observedAiAssetDownloads.remove(state.asset)
                 setAiAssetState(
                     asset = state.asset,
                     assetState = AiAssetState.Error(state.message),
@@ -439,6 +470,12 @@ class TranslatorViewModel(
             }
         }
     }
+
+    private fun aiAssetState(asset: AiAsset): AiAssetState =
+        when (asset) {
+            AiAsset.AsrStreamingZipformer -> _uiState.value.asrAssetState
+            AiAsset.OcrPpOcrV5Mobile -> _uiState.value.ocrAssetState
+        }
 
     fun onSwapLanguages() {
         _uiState.update {

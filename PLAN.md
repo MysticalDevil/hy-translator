@@ -120,8 +120,9 @@
 - UI 取消、通知取消、模型切换、清理资源和 service 自身失败之间还没有完整双向绑定；
   `TranslatorViewModel` 已收集持久化下载状态并按 AI asset 分别映射 UI 状态；主界面已新增
   模型下载取消按钮，以及 ASR/OCR 资源下载中的独立取消按钮，UI 事件会调用对应 controller 并
-  只重置目标状态，已有 ViewModel 单测和真机 Compose 测试覆盖。模型下载完成后的自动加载语义
-  仍依赖 App 进程存活。
+  只重置目标状态；service/通知取消后写入的 Idle 状态也会回写 UI，只清理正在下载的目标状态，
+  避免初始 Idle 覆盖 Ready/普通空状态。已有 ViewModel 单测和真机 Compose 测试覆盖 UI 取消和
+  通知/service Idle 回写。模型下载完成后的自动加载语义仍依赖 App 进程存活。
 - 模型下载完成后由 service 持久化 Completed 并显示明确的下载完成通知；ViewModel 在 App
   存活或下次启动观察到 Completed 后加载模型并补发完成通知；已新增 ViewModel 单元测试覆盖
   Completed 加载、重复 Completed 去重和 Error 状态显示。后续仍要补进程死亡恢复验收，
@@ -347,6 +348,8 @@ DI 默认决策：
   - 失败通知已提供直接重试动作；通知 content intent 已携带模型/AI 资源目标上下文。
     已补取消 action 到持久化状态的真机 instrumentation；已补 retry/open intent action 和
     extras 覆盖。后续需要补真实 retry 端到端覆盖。
+  - service/通知取消写入 Idle 后，ViewModel 已把正在下载的模型或目标 ASR/OCR 资源回写为
+    NotDownloaded，不会影响其他资源状态，也不会用初始 Idle 覆盖 Ready 状态。
   - 切换模型会取消模型下载并停止 ASR runtime；清理模型会取消模型下载、AI 资源下载
     和 ASR runtime。后续补真机通知动作验证。
 - 评估并落地 Google 推荐的用户发起数据传输方案：
