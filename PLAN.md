@@ -105,15 +105,17 @@
 - OCR 资源层已有 `AiAsset.OcrPpOcrV5Mobile` 和 `OcrTextRepository` adapter 边界，
   生产入口已切到 Paddle Lite adapter，det + rec 多框链路已接入，并已在真机使用
   PP-OCRv5 mobile 资源和 PaddleOCR 标准图片通过非 skip smoke。
-- OCR 中文准确率当前仍不能按“可用”验收：det 后处理仍是概率图连通域矩形框，
-  不是 PaddleOCR 标准 DB postprocess 的 contour、unclip 和 rotated/perspective crop；
-  中文截图小字、密集笔画和多行场景容易被紧框裁掉或混入邻行。已先补 recognition crop
-  padding 降低切字风险，但后续必须实现 DB polygon/unclip/rotated crop，并补中文样本
-  断言型 smoke，而不是只验证“输出非空”。
+- OCR 中文准确率当前仍不能按“可用”最终验收：det 后处理已从概率图连通域矩形框升级为
+  contour 边界采集、unclip 扩框、minimum-area rotated rect 和 perspective crop，并保留
+  recognition crop padding，降低中文笔画被紧框裁切的概率；已新增 JVM 回归测试覆盖扩框
+  和斜向文本框。后续仍必须补中文样本断言型真机 smoke，而不是只验证“输出非空”。
 - ASR 资源层和 `VoiceInputRepository` adapter 边界已存在，sherpa-onnx streaming
   Zipformer runtime、`AudioRecord` 和 partial/final result 回写已接入。debug APK 已可内置
-  OCR/ASR 资产和翻译 GGUF，并在清数据后启动自动恢复；已通过 `adb am instrument` 真机运行
-  `SherpaOnnxAsrSmokeTest`，文件流 streaming Zipformer 解码 smoke 为 `OK (1 test)`。
+  OCR/ASR 资产和翻译 GGUF；2026-06-07 已构建 `1,717,021,927` bytes 的 debug APK，
+  `adb install -r` 真机安装后执行 `pm clear` + 启动 App，验证 OCR/ASR 资产和
+  `files/models/Hy-MT2-1.8B-Q4_K_M.gguf 1133080448` 都能从 APK 内置 assets 自动恢复。
+  已通过 `adb am instrument` 真机运行 `SherpaOnnxAsrSmokeTest`，文件流 streaming Zipformer
+  解码 smoke 为 `OK (1 test)`。
 - `app` 已有 ViewModel 单元测试、OCR workflow 单元测试、Compose UI 测试和
   Activity 重建 instrumented 测试；`:lib` 当前测试仍偏 smoke/基础覆盖，后续需继续增强。
 - Manifest 已移除 `MainActivity` 的 `configChanges`，并新增配置变化重建测试；
@@ -203,10 +205,11 @@
 - PaddleOCR adapter 已完成 runtime 初始化、模型文件校验、label 文件校验、det/rec
   predictor 创建和 EXIF 旋转沿用。当前已接入 rec predictor 的整图单行识别路径：
   bitmap resize/normalize、Tensor 输入、`predictor.run()` 和 CTC decode 已有单测覆盖。
-- det resize/stride 对齐、BGR NCHW 归一化、概率图连通域后处理、文本框排序和
-  axis-aligned crop + rec 多框循环已接入，并有纯 JVM 单测覆盖。recognition crop 已增加
-  源图边界内 padding，降低中文笔画被紧框裁切的概率。后续仍缺 DB polygon
-  unclip/rotated crop、更精确文本框排序、typed error 收敛。
+- det resize/stride 对齐、BGR NCHW 归一化、概率图连通域分组、contour 边界采集、
+  unclip 扩框、minimum-area rotated rect、perspective crop + rec 多框循环已接入，并有
+  纯 JVM 单测覆盖矩形扩框和斜向文本框。recognition crop 已增加源图边界内 padding，
+  降低中文笔画被紧框裁切的概率。后续仍缺中文断言型真机 smoke、更精确文本框排序、
+  typed error 收敛。
 - OCR 多语支持策略必须从“单资产”升级为“共享 det + 多 rec/字典 session”：
   - 中/英/日/繁中先使用当前 `PP-OCRv5_mobile_rec.nb` 和 `ppocr_keys_ocrv5.txt`。
   - 阿拉伯文、俄文、葡萄牙文、德文、韩文分别追加官方 multilingual rec 模型和字典。
@@ -474,6 +477,8 @@ DI 默认决策：
     PaddleOCR 标准 demo 图片并验证输出非空；模型未下载时该测试 skip。完整 det + rec
     端到端 smoke 已在真机手动安装 app/test APK、准备 OCR 模型资源后通过
     `adb shell am instrument` 验证。
+  - 已完成第一版 DB 风格 postprocess：contour、unclip、rotated rect 和 perspective crop
+    已有 JVM 回归测试；后续补中文截图/中文印刷体样本的断言型真机 smoke。
 - 权限状态集中建模，UI 只显示当前状态和触发请求事件。
 - 相册和相机错误使用 typed error，避免在 UI 层拼接平台异常。
 
