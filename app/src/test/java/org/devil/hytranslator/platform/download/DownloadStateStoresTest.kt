@@ -17,6 +17,7 @@ class DownloadStateStoresTest {
             modelKey = "Q6_K",
             path = null,
             error = null,
+            attempt = 3L,
             progressType = "downloading",
             downloaded = 20L,
             total = 100L,
@@ -26,6 +27,7 @@ class DownloadStateStoresTest {
             ModelDownloadState.Downloading(
                 model = org.devil.hytranslator.data.ModelOptions.getByKey("Q6_K"),
                 progress = DownloadProgress.Downloading(downloaded = 20L, total = 100L),
+                attempt = 3L,
             ),
             state,
         )
@@ -38,6 +40,7 @@ class DownloadStateStoresTest {
             modelKey = "Q4_K_M",
             path = "/files/models/model.gguf",
             error = null,
+            attempt = 4L,
             progressType = null,
             downloaded = null,
             total = null,
@@ -47,6 +50,7 @@ class DownloadStateStoresTest {
             ModelDownloadState.Completed(
                 model = org.devil.hytranslator.data.ModelOptions.getByKey("Q4_K_M"),
                 path = "/files/models/model.gguf",
+                attempt = 4L,
             ),
             state,
         )
@@ -74,6 +78,7 @@ class DownloadStateStoresTest {
             assetName = AiAsset.AsrStreamingZipformer.name,
             path = null,
             error = "network failed",
+            attempt = 2L,
             progressType = null,
             downloaded = null,
             total = null,
@@ -83,6 +88,7 @@ class DownloadStateStoresTest {
             AiAssetDownloadState.Error(
                 asset = AiAsset.AsrStreamingZipformer,
                 message = "network failed",
+                attempt = 2L,
             ),
             state,
         )

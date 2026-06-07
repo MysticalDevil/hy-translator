@@ -28,8 +28,10 @@ class ModelDownloadStateStore(
 
     suspend fun setDownloading(model: ModelOption, progress: DownloadProgress?) {
         dataStore.edit { preferences ->
+            val attempt = preferences.nextModelAttempt(model)
             preferences[MODEL_STATUS] = STATUS_DOWNLOADING
             preferences[MODEL_KEY] = model.key
+            preferences[MODEL_ATTEMPT] = attempt
             preferences.remove(MODEL_PATH)
             preferences.remove(MODEL_ERROR)
             preferences.writeProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL, progress)
@@ -41,6 +43,7 @@ class ModelDownloadStateStore(
             preferences[MODEL_STATUS] = STATUS_COMPLETED
             preferences[MODEL_KEY] = model.key
             preferences[MODEL_PATH] = path
+            preferences[MODEL_ATTEMPT] = preferences[MODEL_ATTEMPT] ?: DEFAULT_ATTEMPT
             preferences.remove(MODEL_ERROR)
             preferences.clearProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL)
         }
@@ -51,6 +54,7 @@ class ModelDownloadStateStore(
             preferences[MODEL_STATUS] = STATUS_ERROR
             preferences[MODEL_KEY] = model.key
             preferences[MODEL_ERROR] = message
+            preferences[MODEL_ATTEMPT] = preferences[MODEL_ATTEMPT] ?: DEFAULT_ATTEMPT
             preferences.remove(MODEL_PATH)
             preferences.clearProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL)
         }
@@ -62,6 +66,7 @@ class ModelDownloadStateStore(
             preferences.remove(MODEL_KEY)
             preferences.remove(MODEL_PATH)
             preferences.remove(MODEL_ERROR)
+            preferences.remove(MODEL_ATTEMPT)
             preferences.clearProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL)
         }
     }
@@ -71,6 +76,7 @@ class ModelDownloadStateStore(
             if (preferences[MODEL_STATUS] == STATUS_DOWNLOADING) {
                 preferences[MODEL_STATUS] = STATUS_ERROR
                 preferences[MODEL_ERROR] = message
+                preferences[MODEL_ATTEMPT] = preferences[MODEL_ATTEMPT] ?: DEFAULT_ATTEMPT
                 preferences.remove(MODEL_PATH)
                 preferences.clearProgress(MODEL_PROGRESS_TYPE, MODEL_DOWNLOADED, MODEL_TOTAL)
             }
@@ -83,17 +89,19 @@ class ModelDownloadStateStore(
             modelKey = this[MODEL_KEY],
             path = this[MODEL_PATH],
             error = this[MODEL_ERROR],
+            attempt = this[MODEL_ATTEMPT],
             progressType = this[MODEL_PROGRESS_TYPE],
             downloaded = this[MODEL_DOWNLOADED],
             total = this[MODEL_TOTAL],
         )
     }
 
-    private companion object {
+    internal companion object {
         val MODEL_STATUS = stringPreferencesKey("model_status")
         val MODEL_KEY = stringPreferencesKey("model_key")
         val MODEL_PATH = stringPreferencesKey("model_path")
         val MODEL_ERROR = stringPreferencesKey("model_error")
+        val MODEL_ATTEMPT = longPreferencesKey("model_attempt")
         val MODEL_PROGRESS_TYPE = stringPreferencesKey("model_progress_type")
         val MODEL_DOWNLOADED = longPreferencesKey("model_downloaded")
         val MODEL_TOTAL = longPreferencesKey("model_total")
@@ -119,7 +127,9 @@ class AiAssetDownloadStateStore(
 
     suspend fun setDownloading(asset: AiAsset, progress: DownloadProgress?) {
         dataStore.edit { preferences ->
+            val attempt = preferences.nextAiAssetAttempt(asset)
             preferences[aiAssetStatusKey(asset)] = STATUS_DOWNLOADING
+            preferences[aiAssetAttemptKey(asset)] = attempt
             preferences.remove(aiAssetPathKey(asset))
             preferences.remove(aiAssetErrorKey(asset))
             preferences.writeProgress(
@@ -135,6 +145,8 @@ class AiAssetDownloadStateStore(
         dataStore.edit { preferences ->
             preferences[aiAssetStatusKey(asset)] = STATUS_COMPLETED
             preferences[aiAssetPathKey(asset)] = path
+            preferences[aiAssetAttemptKey(asset)] =
+                preferences[aiAssetAttemptKey(asset)] ?: DEFAULT_ATTEMPT
             preferences.remove(aiAssetErrorKey(asset))
             preferences.clearProgress(
                 aiAssetProgressTypeKey(asset),
@@ -148,6 +160,8 @@ class AiAssetDownloadStateStore(
         dataStore.edit { preferences ->
             preferences[aiAssetStatusKey(asset)] = STATUS_ERROR
             preferences[aiAssetErrorKey(asset)] = message
+            preferences[aiAssetAttemptKey(asset)] =
+                preferences[aiAssetAttemptKey(asset)] ?: DEFAULT_ATTEMPT
             preferences.remove(aiAssetPathKey(asset))
             preferences.clearProgress(
                 aiAssetProgressTypeKey(asset),
@@ -177,6 +191,8 @@ class AiAssetDownloadStateStore(
                 if (preferences[aiAssetStatusKey(asset)] == STATUS_DOWNLOADING) {
                     preferences[aiAssetStatusKey(asset)] = STATUS_ERROR
                     preferences[aiAssetErrorKey(asset)] = message
+                    preferences[aiAssetAttemptKey(asset)] =
+                        preferences[aiAssetAttemptKey(asset)] ?: DEFAULT_ATTEMPT
                     preferences.remove(aiAssetPathKey(asset))
                     preferences.clearProgress(
                         aiAssetProgressTypeKey(asset),
@@ -194,6 +210,7 @@ class AiAssetDownloadStateStore(
             assetName = asset.name,
             path = this[aiAssetPathKey(asset)],
             error = this[aiAssetErrorKey(asset)],
+            attempt = this[aiAssetAttemptKey(asset)],
             progressType = this[aiAssetProgressTypeKey(asset)],
             downloaded = this[aiAssetDownloadedKey(asset)],
             total = this[aiAssetTotalKey(asset)],
@@ -215,6 +232,7 @@ internal fun modelDownloadStateFromRecord(
     progressType: String?,
     downloaded: Long?,
     total: Long?,
+    attempt: Long? = null,
 ): ModelDownloadState {
     val model = modelKey?.let { key ->
         runCatching { ModelOptions.getByKey(key) }.getOrNull()
@@ -224,16 +242,19 @@ internal fun modelDownloadStateFromRecord(
         STATUS_DOWNLOADING -> ModelDownloadState.Downloading(
             model = model,
             progress = progressFromRecord(progressType, downloaded, total),
+            attempt = attempt ?: 0L,
         )
 
         STATUS_COMPLETED -> ModelDownloadState.Completed(
             model = model,
             path = path ?: return ModelDownloadState.Idle,
+            attempt = attempt ?: 0L,
         )
 
         STATUS_ERROR -> ModelDownloadState.Error(
             model = model,
             message = error ?: DEFAULT_DOWNLOAD_ERROR,
+            attempt = attempt ?: 0L,
         )
 
         else -> ModelDownloadState.Idle
@@ -248,6 +269,7 @@ internal fun aiAssetDownloadStateFromRecord(
     progressType: String?,
     downloaded: Long?,
     total: Long?,
+    attempt: Long? = null,
 ): AiAssetDownloadState {
     val asset = assetName?.let { name ->
         runCatching { AiAsset.valueOf(name) }.getOrNull()
@@ -257,16 +279,19 @@ internal fun aiAssetDownloadStateFromRecord(
         STATUS_DOWNLOADING -> AiAssetDownloadState.Downloading(
             asset = asset,
             progress = progressFromRecord(progressType, downloaded, total),
+            attempt = attempt ?: 0L,
         )
 
         STATUS_COMPLETED -> AiAssetDownloadState.Completed(
             asset = asset,
             path = path ?: return AiAssetDownloadState.Idle,
+            attempt = attempt ?: 0L,
         )
 
         STATUS_ERROR -> AiAssetDownloadState.Error(
             asset = asset,
             message = error ?: DEFAULT_DOWNLOAD_ERROR,
+            attempt = attempt ?: 0L,
         )
 
         else -> AiAssetDownloadState.Idle
@@ -323,7 +348,29 @@ private fun androidx.datastore.preferences.core.MutablePreferences.clearAsset(as
     remove(aiAssetStatusKey(asset))
     remove(aiAssetPathKey(asset))
     remove(aiAssetErrorKey(asset))
+    remove(aiAssetAttemptKey(asset))
     clearProgress(aiAssetProgressTypeKey(asset), aiAssetDownloadedKey(asset), aiAssetTotalKey(asset))
+}
+
+private fun Preferences.nextModelAttempt(model: ModelOption): Long {
+    val currentAttempt = this[ModelDownloadStateStore.MODEL_ATTEMPT] ?: 0L
+    return if (
+        this[ModelDownloadStateStore.MODEL_STATUS] == STATUS_DOWNLOADING &&
+        this[ModelDownloadStateStore.MODEL_KEY] == model.key
+    ) {
+        currentAttempt.coerceAtLeast(DEFAULT_ATTEMPT)
+    } else {
+        currentAttempt + 1L
+    }
+}
+
+private fun Preferences.nextAiAssetAttempt(asset: AiAsset): Long {
+    val currentAttempt = this[aiAssetAttemptKey(asset)] ?: 0L
+    return if (this[aiAssetStatusKey(asset)] == STATUS_DOWNLOADING) {
+        currentAttempt.coerceAtLeast(DEFAULT_ATTEMPT)
+    } else {
+        currentAttempt + 1L
+    }
 }
 
 private fun aiAssetStatusKey(asset: AiAsset) =
@@ -334,6 +381,9 @@ private fun aiAssetPathKey(asset: AiAsset) =
 
 private fun aiAssetErrorKey(asset: AiAsset) =
     stringPreferencesKey("ai_asset_${asset.name}_error")
+
+private fun aiAssetAttemptKey(asset: AiAsset) =
+    longPreferencesKey("ai_asset_${asset.name}_attempt")
 
 private fun aiAssetProgressTypeKey(asset: AiAsset) =
     stringPreferencesKey("ai_asset_${asset.name}_progress_type")
@@ -355,3 +405,4 @@ private fun androidx.datastore.preferences.core.MutablePreferences.clearProgress
 }
 
 private const val DEFAULT_DOWNLOAD_ERROR = "Download failed"
+private const val DEFAULT_ATTEMPT = 1L

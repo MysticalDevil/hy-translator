@@ -5,7 +5,16 @@ sealed class ModelDownloadState {
     data class Downloading(
         val model: ModelOption,
         val progress: DownloadProgress?,
+        val attempt: Long = 0L,
     ) : ModelDownloadState()
-    data class Completed(val model: ModelOption, val path: String) : ModelDownloadState()
-    data class Error(val model: ModelOption, val message: String) : ModelDownloadState()
+    data class Completed(
+        val model: ModelOption,
+        val path: String,
+        val attempt: Long = 0L,
+    ) : ModelDownloadState()
+    data class Error(
+        val model: ModelOption,
+        val message: String,
+        val attempt: Long = 0L,
+    ) : ModelDownloadState()
 }

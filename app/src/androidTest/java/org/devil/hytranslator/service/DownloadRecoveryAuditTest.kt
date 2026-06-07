@@ -14,6 +14,7 @@ import org.devil.hytranslator.platform.download.AiAssetDownloadStateStore
 import org.devil.hytranslator.platform.download.ModelDownloadStateStore
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -44,9 +45,55 @@ class DownloadRecoveryAuditTest {
         }
 
         assertEquals(
-            ModelDownloadState.Error(model = model, message = DOWNLOAD_INTERRUPTED_MESSAGE),
+            ModelDownloadState.Error(
+                model = model,
+                message = DOWNLOAD_INTERRUPTED_MESSAGE,
+                attempt = 1L,
+            ),
             state,
         )
+    }
+
+    @Test
+    fun modelStateStore_incrementsAttemptOnlyForNewDownloadAttempt() = runBlocking {
+        val model = ModelOptions.getByKey("Q4_K_M")
+        modelStateStore.setIdle()
+
+        modelStateStore.setDownloading(
+            model = model,
+            progress = DownloadProgress.Started(total = 100L, existing = 0L),
+        )
+        val first = withTimeout(5_000) {
+            modelStateStore.state.first { it is ModelDownloadState.Downloading }
+        } as ModelDownloadState.Downloading
+
+        modelStateStore.setDownloading(
+            model = model,
+            progress = DownloadProgress.Downloading(downloaded = 50L, total = 100L),
+        )
+        val progressUpdate = withTimeout(5_000) {
+            modelStateStore.state.first { state ->
+                state is ModelDownloadState.Downloading &&
+                    state.progress == DownloadProgress.Downloading(downloaded = 50L, total = 100L)
+            }
+        } as ModelDownloadState.Downloading
+
+        modelStateStore.setError(model, "network failed")
+        modelStateStore.setDownloading(
+            model = model,
+            progress = DownloadProgress.Started(total = 100L, existing = 0L),
+        )
+        val retry = withTimeout(5_000) {
+            modelStateStore.state.first { state ->
+                state is ModelDownloadState.Downloading &&
+                    state.progress == DownloadProgress.Started(total = 100L, existing = 0L) &&
+                    state.attempt == 2L
+            }
+        } as ModelDownloadState.Downloading
+
+        assertEquals(1L, first.attempt)
+        assertEquals(1L, progressUpdate.attempt)
+        assertEquals(2L, retry.attempt)
     }
 
     @Test
@@ -75,6 +122,7 @@ class DownloadRecoveryAuditTest {
             AiAssetDownloadState.Error(
                 asset = AiAsset.AsrStreamingZipformer,
                 message = DOWNLOAD_INTERRUPTED_MESSAGE,
+                attempt = 1L,
             ),
             asrState,
         )
@@ -82,9 +130,50 @@ class DownloadRecoveryAuditTest {
             AiAssetDownloadState.Error(
                 asset = AiAsset.OcrPpOcrV5Mobile,
                 message = DOWNLOAD_INTERRUPTED_MESSAGE,
+                attempt = 1L,
             ),
             ocrState,
         )
+    }
+
+    @Test
+    fun aiAssetStateStore_tracksAttemptsPerAsset() = runBlocking {
+        aiAssetStateStore.setIdle()
+
+        aiAssetStateStore.setDownloading(
+            asset = AiAsset.AsrStreamingZipformer,
+            progress = DownloadProgress.Started(total = 100L, existing = 0L),
+        )
+        aiAssetStateStore.setDownloading(
+            asset = AiAsset.OcrPpOcrV5Mobile,
+            progress = DownloadProgress.Started(total = 80L, existing = 0L),
+        )
+        val asrFirst = withTimeout(5_000) {
+            aiAssetStateStore.state(AiAsset.AsrStreamingZipformer)
+                .first { it is AiAssetDownloadState.Downloading }
+        } as AiAssetDownloadState.Downloading
+        val ocrFirst = withTimeout(5_000) {
+            aiAssetStateStore.state(AiAsset.OcrPpOcrV5Mobile)
+                .first { it is AiAssetDownloadState.Downloading }
+        } as AiAssetDownloadState.Downloading
+
+        aiAssetStateStore.setError(AiAsset.OcrPpOcrV5Mobile, "network failed")
+        aiAssetStateStore.setDownloading(
+            asset = AiAsset.OcrPpOcrV5Mobile,
+            progress = DownloadProgress.Started(total = 80L, existing = 0L),
+        )
+        val ocrRetry = withTimeout(5_000) {
+            aiAssetStateStore.state(AiAsset.OcrPpOcrV5Mobile)
+                .first { state ->
+                    state is AiAssetDownloadState.Downloading &&
+                        state.attempt == 2L
+                }
+        } as AiAssetDownloadState.Downloading
+
+        assertEquals(1L, asrFirst.attempt)
+        assertEquals(1L, ocrFirst.attempt)
+        assertEquals(2L, ocrRetry.attempt)
+        assertSame(AiAsset.OcrPpOcrV5Mobile, ocrRetry.asset)
     }
 
     private companion object {
