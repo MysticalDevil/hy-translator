@@ -21,3 +21,4 @@ lib/src/main/prebuilt/
 third_party/sherpa-onnx-android/
 third_party/paddle-lite-android/
 app/src/debug/assets/ai-assets/
+app/src/debug/assets/models/

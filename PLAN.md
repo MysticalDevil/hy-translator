@@ -34,7 +34,11 @@
    - 当前 `PP-OCRv5_mobile_rec.nb` 优先覆盖中/英/日/繁中识别；阿拉伯文、俄文、
      葡萄牙文、德文、韩文需要后续追加对应 PaddleOCR multilingual recognition
      模型和字典，并在识别入口按源语言或自动检测结果选择 rec session。
-   - OCR 模型资源必须按需下载、校验、加载，不打包进 APK。
+- OCR 模型资源必须按需下载、校验、加载，不打包进 APK。
+   - 用户测试用 debug APK 允许通过 ignored `app/src/debug/assets/ai-assets/` 内置 OCR/ASR
+     模型，并通过 ignored `app/src/debug/assets/models/` 内置翻译 GGUF；启动后分别释放到
+     `files/ai-assets` 和 `files/models`，避免真机反复联网下载；release/生产分发仍保持
+     按需下载，不把大模型打进 APK。
    - 相机/相册 OCR smoke path 要在真机验证。
 
 3. **ASR 真正接入 sherpa-onnx streaming Zipformer**
@@ -107,7 +111,9 @@
   padding 降低切字风险，但后续必须实现 DB polygon/unclip/rotated crop，并补中文样本
   断言型 smoke，而不是只验证“输出非空”。
 - ASR 资源层和 `VoiceInputRepository` adapter 边界已存在，sherpa-onnx streaming
-  Zipformer runtime、`AudioRecord` 和 partial/final result 回写已接入，仍待真机端到端 smoke。
+  Zipformer runtime、`AudioRecord` 和 partial/final result 回写已接入。debug APK 已可内置
+  OCR/ASR 资产和翻译 GGUF，并在清数据后启动自动恢复；已通过 `adb am instrument` 真机运行
+  `SherpaOnnxAsrSmokeTest`，文件流 streaming Zipformer 解码 smoke 为 `OK (1 test)`。
 - `app` 已有 ViewModel 单元测试、OCR workflow 单元测试、Compose UI 测试和
   Activity 重建 instrumented 测试；`:lib` 当前测试仍偏 smoke/基础覆盖，后续需继续增强。
 - Manifest 已移除 `MainActivity` 的 `configChanges`，并新增配置变化重建测试；
@@ -233,6 +239,8 @@
 - 已新增标准 WAV 文件 smoke 入口：`scripts/download-asr-smoke-audio.sh` 下载当前
   sherpa-onnx bilingual Zipformer 模型仓库自带 `test_wavs`，`SherpaOnnxAsrSmokeTest`
   可在设备已有 ASR 模型资源时把 WAV 文件喂给 streaming recognizer 做真机解码 smoke。
+  2026-06-07 已使用带内置模型的 debug APK 清数据启动后，通过 `adb am instrument`
+  运行该 smoke，结果为 `OK (1 test)`。
   大规模标准回归数据源记录在 `docs/asr-smoke-data.md`，包括 LibriSpeech、AISHELL-1
   和 Common Voice。
 
@@ -547,7 +555,8 @@ DI 默认决策：
 - 新增统一 AI 资源层：
   - `AiAsset` 描述 translation/asr/ocr 资源、文件清单、大小、校验、下载 URL 和本地路径。
   - `AiAssetRepository` 暴露资源状态、下载、校验和清理。
-  - ASR/OCR 模型首次下载，不进入 APK。
+  - release/生产分发下 ASR/OCR/翻译模型首次下载，不进入 APK；本地 debug APK 允许内置
+    ignored 测试资产，避免开发机和真机反复消耗网络配额。
 - ASR 资源下载和 runtime 启停已拆开：
   - 资源状态仍由 `AiAssetRepository` lazy 检查和下载。
   - 语音 runtime 通过 `VoiceInputRepository` lazy start/stop。
@@ -570,8 +579,9 @@ DI 默认决策：
   - sherpa runtime 初始化失败、麦克风权限拒绝、音频采集失败必须进入 typed error。
   - 当前已覆盖缺模型、缺 native runtime、权限拒绝和 session 启动失败的错误状态；
     音频采集过程中的运行时错误仍需扩展为 typed event 或 Flow。
-  - 已新增文件流 ASR smoke harness：设备上 ASR 模型存在时，instrumented test 会下载
-    sherpa-onnx 标准 test WAV 并验证输出非空；模型未下载时该测试 skip。
+- 已新增文件流 ASR smoke harness：设备上 ASR 模型存在时，instrumented test 会下载
+    sherpa-onnx 标准 test WAV 并验证输出非空；模型未下载时该测试 skip。带内置模型的
+    debug APK 已用 `adb am instrument` 跑通该 smoke。
 - 录音链路使用 `AudioRecord` adapter：
   - 采集 16 kHz mono PCM。
   - UI 通过麦克风 icon button 触发。

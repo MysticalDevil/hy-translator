@@ -23,6 +23,7 @@ class ModelRepositoryImpl(
 
     private var selectedModel: ModelOption = loadSelectedModel()
     private var downloader: ModelDownloader = ModelDownloader(context, selectedModel.filename)
+    private val bundledModelInstaller = BundledModelInstaller(context)
 
     override fun allModels(): List<ModelOption> = ModelOptions.all
 
@@ -41,9 +42,19 @@ class ModelRepositoryImpl(
 
     override fun getModelPath(): String = downloader.getModelPath()
 
-    override fun isModelDownloaded(): Boolean = downloader.isModelDownloaded()
+    override fun isModelDownloaded(): Boolean {
+        bundledModelInstaller.installIfPresent(selectedModel)
+        return downloader.isModelDownloaded()
+    }
 
-    override fun download(): Flow<DownloadProgress> = downloader.download()
+    override fun download(): Flow<DownloadProgress> {
+        bundledModelInstaller.installIfPresent(selectedModel)
+        return if (downloader.isModelDownloaded()) {
+            kotlinx.coroutines.flow.flowOf(DownloadProgress.Completed(downloader.getModelPath()))
+        } else {
+            downloader.download()
+        }
+    }
 
     override fun getRecommended(): ModelOption = ModelOptions.recommend(context)
 

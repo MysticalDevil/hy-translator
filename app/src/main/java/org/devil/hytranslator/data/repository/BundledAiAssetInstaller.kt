@@ -1,7 +1,6 @@
 package org.devil.hytranslator.data.repository
 
 import android.content.Context
-import android.content.res.AssetManager
 import org.devil.hytranslator.domain.model.AiAsset
 import java.io.File
 
@@ -67,9 +66,3 @@ internal data class BundledAiAssetTarget(
     val outputPath: String,
     val minBytes: Long,
 )
-
-private fun AssetManager.assetExists(path: String): Boolean {
-    val parent = path.substringBeforeLast('/', missingDelimiterValue = "")
-    val name = path.substringAfterLast('/')
-    return list(parent).orEmpty().contains(name)
-}
